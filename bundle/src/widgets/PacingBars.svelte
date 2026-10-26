@@ -1,11 +1,26 @@
 <script>
   import { computeBarState } from './pacing-data';
   import { fetchApi } from '../api-client';
+  import CategoryBreakdownModal from './CategoryBreakdownModal.svelte';
 
   let { categoryIds = [] } = $props();
 
   let categories = $state(null);
   let errorMessage = $state(null);
+  let openCategory = $state(null);
+
+  function openBreakdown(category) {
+    openCategory = {
+      categoryId: category.id,
+      categoryName: category.name,
+      groupId: category.groupId,
+      groupName: category.groupName,
+    };
+  }
+
+  function closeBreakdown() {
+    openCategory = null;
+  }
 
   function currentMonth() {
     const now = new Date();
@@ -57,7 +72,7 @@
     <p class="pacing-empty">No pacing categories to show.</p>
   {:else}
     {#each categories as category (category.id)}
-      <div class="pacing-row">
+      <button type="button" class="pacing-row" onclick={() => openBreakdown(category)}>
         <div class="pacing-row-header">
           <span class="pacing-name">{category.name}</span>
           <span class="pacing-amounts">
@@ -71,8 +86,18 @@
           ></div>
           <div class="pacing-tick" style:left="{category.bar.tickPct}%"></div>
         </div>
-      </div>
+      </button>
     {/each}
+  {/if}
+
+  {#if openCategory}
+    <CategoryBreakdownModal
+      categoryId={openCategory.categoryId}
+      categoryName={openCategory.categoryName}
+      groupId={openCategory.groupId}
+      groupName={openCategory.groupName}
+      onClose={closeBreakdown}
+    />
   {/if}
 </div>
 
@@ -100,6 +125,16 @@
     flex-direction: column;
     gap: 0.25rem;
     width: 100%;
+    /* Reset <button> defaults so this keeps looking like the plain row it
+       was before becoming keyboard-accessible (button semantics). */
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: pointer;
   }
 
   .pacing-row-header {

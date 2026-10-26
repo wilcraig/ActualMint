@@ -1,0 +1,191 @@
+<script>
+  import { untrack } from 'svelte';
+  import { initialState, drillInto, zoomOut } from './breakdown-nav';
+  import { fetchApi } from '../api-client';
+  import CategoryBreakdownDonut from './CategoryBreakdownDonut.svelte';
+
+  let { categoryId, categoryName, groupId, groupName, onClose = () => {} } = $props();
+
+  // Caller (PacingBars) mounts one modal instance per opened category, so
+  // these props are only ever read at open time -- intentionally not
+  // reactive to later prop changes, hence untrack().
+  let nav = $state(untrack(() => initialState({ categoryId, categoryName, groupId, groupName })));
+  let breakdown = $state(null);
+  let errorMessage = $state(null);
+
+  function currentMonth() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  async function load(currentNav) {
+    errorMessage = null;
+    breakdown = null;
+
+    try {
+      const params = new URLSearchParams({ month: currentMonth(), level: currentNav.level });
+      if (currentNav.level === 'categories') {
+        params.set('groupId', currentNav.groupId);
+      } else if (currentNav.level === 'payees') {
+        params.set('categoryId', currentNav.categoryId);
+      }
+
+      const response = await fetchApi(`/api/spending-breakdown?${params}`);
+
+      if (!response.ok) {
+        errorMessage = `Spending breakdown unavailable (${response.status})`;
+        return;
+      }
+
+      breakdown = await response.json();
+    } catch (err) {
+      errorMessage = 'Spending breakdown unavailable: could not reach actualmint-api.';
+    }
+  }
+
+  // Re-fetch on mount and on every navigation-state transition.
+  $effect(() => {
+    load(nav);
+  });
+
+  function handleSliceClick(sliceId) {
+    const slice = breakdown?.slices.find((s) => s.id === sliceId);
+    if (!slice) return;
+    nav = drillInto(nav, slice);
+  }
+
+  function handleBreadcrumbClick(level) {
+    while (nav.level !== level && nav.level !== 'groups') {
+      nav = zoomOut(nav);
+    }
+  }
+</script>
+
+<div class="actualmint-breakdown-modal-backdrop" role="presentation">
+  <div class="actualmint-breakdown-modal" role="dialog" aria-modal="true" aria-label="Spending breakdown">
+    <div class="breakdown-modal-header">
+      <nav class="breakdown-breadcrumb" aria-label="Breakdown level">
+        <button
+          type="button"
+          class="breadcrumb-item"
+          class:breadcrumb-current={nav.level === 'groups'}
+          onclick={() => handleBreadcrumbClick('groups')}
+        >
+          Groups
+        </button>
+        {#if nav.groupName}
+          <span class="breadcrumb-sep">/</span>
+          <button
+            type="button"
+            class="breadcrumb-item"
+            class:breadcrumb-current={nav.level === 'categories'}
+            onclick={() => handleBreadcrumbClick('categories')}
+          >
+            {nav.groupName}
+          </button>
+        {/if}
+        {#if nav.categoryName}
+          <span class="breadcrumb-sep">/</span>
+          <button
+            type="button"
+            class="breadcrumb-item"
+            class:breadcrumb-current={nav.level === 'payees'}
+            onclick={() => handleBreadcrumbClick('payees')}
+          >
+            {nav.categoryName}
+          </button>
+        {/if}
+      </nav>
+      <button type="button" class="breakdown-close" aria-label="Close" onclick={() => onClose()}>×</button>
+    </div>
+
+    <div class="breakdown-modal-body">
+      {#if errorMessage}
+        <p class="breakdown-error" role="alert">{errorMessage}</p>
+      {:else if breakdown === null}
+        <p class="breakdown-loading">Loading spending breakdown…</p>
+      {:else}
+        <CategoryBreakdownDonut slices={breakdown.slices} total={breakdown.total} onSliceClick={handleSliceClick} />
+      {/if}
+    </div>
+  </div>
+</div>
+
+<style>
+  .actualmint-breakdown-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .actualmint-breakdown-modal {
+    background: #fff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    width: 90%;
+    max-width: 420px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+
+  .breakdown-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .breakdown-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+
+  .breadcrumb-item {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: #2563eb;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .breadcrumb-current {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: default;
+  }
+
+  .breadcrumb-sep {
+    color: #888;
+  }
+
+  .breakdown-close {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #555;
+    padding: 0 0.25rem;
+  }
+
+  .breakdown-error {
+    color: #b91c1c;
+    font-weight: 600;
+  }
+</style>
