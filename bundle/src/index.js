@@ -1,6 +1,7 @@
 import { mountWidget } from './mount';
 import { maybeRedirectToReports } from './redirect';
 import PacingBars from './widgets/PacingBars.svelte';
+import MonthEndNet from './widgets/MonthEndNet.svelte';
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
@@ -12,4 +13,8 @@ try {
 
 mountWidget('{{ACTUALMINT:pacing-bars:', (host, categoryIds) => {
   new PacingBars({ target: host, props: { categoryIds } });
+});
+
+mountWidget('{{ACTUALMINT:month-end-net:', (host) => {
+  new MonthEndNet({ target: host });
 });
