@@ -2,6 +2,7 @@ const express = require('express');
 const { hasEverConnected } = require('./actual-client');
 const { validateToken } = require('./auth');
 const budgetPacingRouter = require('./routes/budget-pacing');
+const monthEndProjectionRouter = require('./routes/month-end-projection');
 
 const app = express();
 
@@ -20,6 +21,7 @@ async function requireAuth(req, res, next) {
 
 app.use('/api', requireAuth);
 app.use('/api/budget-pacing', budgetPacingRouter);
+app.use('/api/month-end-projection', monthEndProjectionRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
