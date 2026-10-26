@@ -1,4 +1,5 @@
 <script>
+  import { mount, unmount } from 'svelte';
   import { computeBarState } from './pacing-data';
   import { fetchApi } from '../api-client';
   import CategoryBreakdownModal from './CategoryBreakdownModal.svelte';
@@ -7,19 +8,39 @@
 
   let categories = $state(null);
   let errorMessage = $state(null);
-  let openCategory = $state(null);
+
+  // The modal is mounted imperatively onto `document.body` -- not rendered
+  // inline in this component's own tree -- so its `position: fixed`
+  // backdrop is never a descendant of a `transform`-ed ancestor (Actual's
+  // Reports page positions each widget's grid-item with a CSS transform via
+  // react-grid-layout, which per spec becomes the containing block for any
+  // `position: fixed` descendant, confining an inline-rendered backdrop to
+  // the widget's own box instead of the real viewport).
+  let modalInstance = null;
 
   function openBreakdown(category) {
-    openCategory = {
-      categoryId: category.id,
-      categoryName: category.name,
-      groupId: category.groupId,
-      groupName: category.groupName,
-    };
+    if (modalInstance) {
+      unmount(modalInstance);
+      modalInstance = null;
+    }
+
+    modalInstance = mount(CategoryBreakdownModal, {
+      target: document.body,
+      props: {
+        categoryId: category.id,
+        categoryName: category.name,
+        groupId: category.groupId,
+        groupName: category.groupName,
+        onClose: closeBreakdown,
+      },
+    });
   }
 
   function closeBreakdown() {
-    openCategory = null;
+    if (modalInstance) {
+      unmount(modalInstance);
+      modalInstance = null;
+    }
   }
 
   function currentMonth() {
@@ -88,16 +109,6 @@
         </div>
       </button>
     {/each}
-  {/if}
-
-  {#if openCategory}
-    <CategoryBreakdownModal
-      categoryId={openCategory.categoryId}
-      categoryName={openCategory.categoryName}
-      groupId={openCategory.groupId}
-      groupName={openCategory.groupName}
-      onClose={closeBreakdown}
-    />
   {/if}
 </div>
 

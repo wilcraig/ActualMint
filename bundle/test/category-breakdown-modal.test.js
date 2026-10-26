@@ -97,6 +97,48 @@ test('zooming out via breadcrumb re-fetches at the categories level for the know
   expect(lastUrl).toContain('groupId=group1');
 });
 
+test('a slower in-flight request that resolves after a newer one does not clobber the newer state', async () => {
+  // Simulate rapid navigation: the first load() (groups->categories zoom
+  // out, triggered on mount at 'payees') is slow; before it resolves, a
+  // second, faster navigation (breadcrumb click back to 'categories')
+  // fires and resolves first. The slow first response must be discarded
+  // when it finally arrives, not overwrite the newer, correct state.
+  let resolveFirst;
+  const firstPromise = new Promise((resolve) => {
+    resolveFirst = resolve;
+  });
+
+  fetchApi
+    .mockImplementationOnce(() => firstPromise)
+    .mockResolvedValueOnce(
+      jsonResponse({ total: 900, slices: [{ id: 'p2', label: 'Second (newer)', amountCents: 900 }] }),
+    );
+
+  mountModal();
+  // Let the mount-triggered load() call fetchApi and register as call #1,
+  // without resolving it yet.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const target = document.getElementById('host');
+  const groupBreadcrumb = Array.from(target.querySelectorAll('button.breadcrumb-item')).find((b) =>
+    b.textContent.includes('Everyday Expenses'),
+  );
+  groupBreadcrumb.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+  // Let the second (faster) load() resolve fully first.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(target.textContent).toContain('Second (newer)');
+
+  // Now let the first (slower) request's response arrive late.
+  resolveFirst(jsonResponse({ total: 500, slices: [{ id: 'p1', label: 'First (stale)', amountCents: 500 }] }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // The stale response must not have overwritten the newer state.
+  expect(target.textContent).toContain('Second (newer)');
+  expect(target.textContent).not.toContain('First (stale)');
+});
+
 test('calls onClose when the close control is clicked', async () => {
   fetchApi.mockResolvedValue(jsonResponse({ total: 0, slices: [] }));
 

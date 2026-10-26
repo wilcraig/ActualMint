@@ -13,6 +13,15 @@
   let breakdown = $state(null);
   let errorMessage = $state(null);
 
+  // Request-sequence guard: unlike PacingBars (which fetches once),
+  // load() re-fires on every navigation, and the user can trigger a new
+  // navigation before a slower in-flight request resolves. Without this,
+  // an earlier (slower) request's response arriving after a later
+  // (faster) one would overwrite the correct, newer state with stale
+  // data. Each load() call claims the next sequence number up front and
+  // only applies its result if no newer call has started since.
+  let loadSeq = 0;
+
   function currentMonth() {
     const now = new Date();
     const year = now.getFullYear();
@@ -21,6 +30,7 @@
   }
 
   async function load(currentNav) {
+    const seq = ++loadSeq;
     errorMessage = null;
     breakdown = null;
 
@@ -34,13 +44,18 @@
 
       const response = await fetchApi(`/api/spending-breakdown?${params}`);
 
+      if (seq !== loadSeq) return; // a newer navigation has since started; discard this response
+
       if (!response.ok) {
         errorMessage = `Spending breakdown unavailable (${response.status})`;
         return;
       }
 
-      breakdown = await response.json();
+      const data = await response.json();
+      if (seq !== loadSeq) return; // a newer navigation started while this response body was parsing
+      breakdown = data;
     } catch (err) {
+      if (seq !== loadSeq) return;
       errorMessage = 'Spending breakdown unavailable: could not reach actualmint-api.';
     }
   }

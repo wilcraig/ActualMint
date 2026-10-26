@@ -109,6 +109,34 @@ test('level=categories requires groupId (400 without it)', async () => {
   });
 });
 
+test('level=categories 400s when groupId is not a plain string (Express query-parser object)', async () => {
+  getActualClient.mockResolvedValue(stubClient({}));
+
+  await withServer(async (base) => {
+    // Express's default (extended) query parser turns `groupId[$ne]=x` into
+    // `req.query.groupId = { $ne: 'x' }` rather than a string -- which,
+    // left unchecked, would reach the AQL query builder as an operator
+    // object instead of a literal filter value.
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=categories&groupId[$ne]=x`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'groupId is required for level=categories' });
+  });
+});
+
+test('level=payees 400s when categoryId is not a plain string (Express query-parser object)', async () => {
+  getActualClient.mockResolvedValue(stubClient({}));
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=payees&categoryId[$ne]=x`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'categoryId is required for level=payees' });
+  });
+});
+
 test('level=categories aggregates spending by category within the given group', async () => {
   const client = stubClient({
     transactions: [

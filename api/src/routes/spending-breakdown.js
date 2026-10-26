@@ -144,12 +144,16 @@ router.get('/', async (req, res, next) => {
       return;
     }
 
-    if (level === 'categories' && !groupId) {
+    // Express's default query parser turns `?groupId[$ne]=x` into an object
+    // rather than a string. Reject that here instead of letting it reach
+    // the AQL query builder, where it would compile as an operator object
+    // rather than a literal filter value.
+    if (level === 'categories' && (!groupId || typeof groupId !== 'string')) {
       res.status(400).json({ error: 'groupId is required for level=categories' });
       return;
     }
 
-    if (level === 'payees' && !categoryId) {
+    if (level === 'payees' && (!categoryId || typeof categoryId !== 'string')) {
       res.status(400).json({ error: 'categoryId is required for level=payees' });
       return;
     }
