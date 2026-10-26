@@ -103,22 +103,46 @@ function resolveScheduledAmount(amount) {
   return Math.round((amount.num1 + amount.num2) / 2);
 }
 
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 // Expands a RecurConfig into the occurrence dates falling within [range.start, range.end]
 // (inclusive). Never throws for a schedule that's exhausted or not yet started; returns [].
 function expandOccurrences(config, range) {
   const rules = recurConfigToRules(config);
   const schedule = new RSchedule({ rrules: rules });
 
+  if (!config.skipWeekend) {
+    return schedule
+      .occurrences({ start: range.start, end: range.end })
+      .toArray()
+      .map((occ) => occ.date);
+  }
+
+  // When a schedule skips weekends, its *post-shift* date is what should be
+  // compared against [range.start, range.end] - not the natural, unshifted
+  // occurrence date @rschedule generates. An occurrence whose natural date is
+  // just outside the requested range can shift into it (e.g. a 'before' shift
+  // from the 1st of next month back to the last Friday of this month), and
+  // vice versa (final-review Fix 3). So query a padded window from the
+  // underlying generator, apply the weekend shift to each occurrence, and
+  // only then filter down to the actually-requested range. A weekend shift
+  // never moves a date more than 2 days (Sat->Fri or Sun->Mon), so a 3-day
+  // pad on each side is generous headroom.
+  const paddedStart = addDays(range.start, -3);
+  const paddedEnd = addDays(range.end, 3);
+
   const occurrences = schedule
-    .occurrences({ start: range.start, end: range.end })
+    .occurrences({ start: paddedStart, end: paddedEnd })
     .toArray()
     .map((occ) => occ.date);
 
-  if (!config.skipWeekend) {
-    return occurrences;
-  }
+  const shifted = occurrences.map((date) => getDateWithSkippedWeekend(date, config.weekendSolveMode));
 
-  return occurrences.map((date) => getDateWithSkippedWeekend(date, config.weekendSolveMode));
+  return shifted.filter((date) => date >= range.start && date <= range.end);
 }
 
-module.exports = { resolveScheduledAmount, expandOccurrences };
+module.exports = { resolveScheduledAmount, expandOccurrences, parseDate };

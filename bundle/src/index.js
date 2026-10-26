@@ -15,6 +15,11 @@ mountWidget('{{ACTUALMINT:pacing-bars:', (host, categoryIds) => {
   new PacingBars({ target: host, props: { categoryIds } });
 });
 
+// MonthEndNet takes no config (mount.js still requires the placeholder's body
+// to parse as JSON, so an empty or missing body like `{{ACTUALMINT:month-end-net:}}`
+// fails to parse and the widget never mounts). To add this widget, type the
+// following literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:month-end-net:null}}
 mountWidget('{{ACTUALMINT:month-end-net:', (host) => {
   new MonthEndNet({ target: host });
 });

@@ -11,7 +11,7 @@ function assertTimezoneConfigured() {
   const tz = process.env.TZ;
   if (!tz || tz.trim().length === 0) {
     const err = new Error(
-      'budget-pacing: process.env.TZ is not set. The actualmint-api container must set TZ to the ' +
+      'actualmint-api: process.env.TZ is not set. The actualmint-api container must set TZ to the ' +
         "household's timezone (e.g. TZ=America/Denver) so day-of-month math here matches the " +
         "browser's local time. Refusing to silently compute wrong daysElapsed/daysInMonth values."
     );

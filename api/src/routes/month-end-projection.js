@@ -2,26 +2,34 @@ const express = require('express');
 
 const { getActualClient, syncIfDue } = require('../actual-client');
 const { computeDays } = require('../month-days');
-const { resolveScheduledAmount, expandOccurrences } = require('../recurrence');
+const { resolveScheduledAmount, expandOccurrences, parseDate } = require('../recurrence');
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
-// A one-time schedule's `next_date` is a plain 'YYYY-MM-DD' string. Native
-// `new Date('YYYY-MM-DD')` parses that as UTC midnight, not local midnight —
-// in a negative-UTC-offset household timezone that silently shifts the date
-// back a calendar day (the same pitfall recurrence.js's own parseDate works
-// around). Parse it the same way here so this stays TZ-safe end to end.
-function parseLocalDate(dateString) {
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(year, month - 1, day);
+// Midnight of `date`'s own local calendar day, with any wall-clock
+// time-of-day component zeroed out. Used as a stable range boundary that
+// doesn't change behavior depending on what time of day a request happens to
+// arrive (final-review Fix 2).
+function startOfLocalDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function firstDayOfMonth(month) {
+  const [yearStr, monthStr] = month.split('-');
+  return new Date(Number(yearStr), Number(monthStr) - 1, 1);
 }
 
 function monthEndDate(month) {
   const [yearStr, monthStr] = month.split('-');
   const year = Number(yearStr);
   const monthNum = Number(monthStr);
-  // Last day of `month` at local midnight; day 0 of the next month.
-  return new Date(year, monthNum, 0);
+  // The LAST MOMENT of the last calendar day of `month`, not local midnight.
+  // recurrence.js generates recurring occurrences at local noon
+  // (byHourOfDay: [12]), so a midnight boundary silently dropped any
+  // recurring occurrence on the last day of the month, while a one-time
+  // schedule due that same day (compared as date-only) was still counted —
+  // the two code paths disagreed (final-review Fix 1, Critical).
+  return new Date(year, monthNum, 0, 23, 59, 59, 999);
 }
 
 // Builds the set of payee ids that represent transfers between the
@@ -34,10 +42,10 @@ function transferPayeeIds(payees) {
   return new Set((payees || []).filter((p) => p.transfer_acct).map((p) => p.id));
 }
 
-// Sums the scheduled income expected between `today` and `monthEnd`
+// Sums the scheduled income expected between `rangeStart` and `monthEnd`
 // (inclusive), excluding completed schedules, non-positive amounts, and
 // transfers to/from the household's own accounts.
-function sumRemainingScheduledIncome(schedules, transferIds, today, monthEnd) {
+function sumRemainingScheduledIncome(schedules, transferIds, rangeStart, monthEnd) {
   let total = 0;
 
   for (const schedule of schedules || []) {
@@ -50,12 +58,12 @@ function sumRemainingScheduledIncome(schedules, transferIds, today, monthEnd) {
 
     if (typeof schedule.date === 'string') {
       // One-time schedule: count it once if its next occurrence falls in range.
-      const nextDate = parseLocalDate(schedule.next_date);
-      if (nextDate >= today && nextDate <= monthEnd) {
+      const nextDate = parseDate(schedule.next_date);
+      if (nextDate >= rangeStart && nextDate <= monthEnd) {
         total += amount;
       }
     } else {
-      const occurrences = expandOccurrences(schedule.date, { start: today, end: monthEnd });
+      const occurrences = expandOccurrences(schedule.date, { start: rangeStart, end: monthEnd });
       total += occurrences.length * amount;
     }
   }
@@ -81,7 +89,12 @@ function sumTrendedRemainingSpending(categoryGroups, daysElapsed, daysInMonth) {
       const budgeted = category.budgeted ?? 0;
 
       const dailyRate = spent / daysElapsed;
-      let projectedTotal = spent + dailyRate * remainingDays;
+      // Round the trended (not-yet-spent) portion before it's folded into the
+      // total: dailyRate * remainingDays is a fractional-cents estimate, and
+      // leaving it unrounded could put a fraction of a cent into the final
+      // response (final-review Fix 6, Minor).
+      const trendedRemaining = Math.round(dailyRate * remainingDays);
+      let projectedTotal = spent + trendedRemaining;
       if (spent <= budgeted) {
         projectedTotal = Math.min(projectedTotal, budgeted);
       }
@@ -118,10 +131,17 @@ router.get('/', async (req, res, next) => {
     const incomeSoFarCents = budgetMonth.totalIncome ?? 0;
     const spentSoFarCents = -(budgetMonth.totalSpent ?? 0);
 
-    const today = new Date();
+    const today = startOfLocalDay(new Date());
     const monthEnd = monthEndDate(month);
+    // Clamp the range start to the later of "today" and the first day of the
+    // requested month: for a future month, "today" is still in an earlier
+    // month, and without this clamp the range would incorrectly span the
+    // rest of the CURRENT month's remaining days too (final-review Fix 8,
+    // Minor). For the current or a past month this is a no-op (today is
+    // already >= the first of the month).
+    const rangeStart = new Date(Math.max(today.getTime(), firstDayOfMonth(month).getTime()));
     const transferIds = transferPayeeIds(payees);
-    const remainingScheduledIncomeCents = sumRemainingScheduledIncome(schedules, transferIds, today, monthEnd);
+    const remainingScheduledIncomeCents = sumRemainingScheduledIncome(schedules, transferIds, rangeStart, monthEnd);
 
     const trendedRemainingSpendingCents = sumTrendedRemainingSpending(budgetMonth.categoryGroups, daysElapsed, daysInMonth);
 

@@ -39,6 +39,30 @@ test('expandOccurrences handles a monthly schedule with a day-of-month pattern',
   expect(dates.map((d) => d.toISOString().slice(0, 10))).toEqual(['2026-11-15']);
 });
 
+test("expandOccurrences shifts a weekend occurrence into the PRIOR month's range when weekendSolveMode is 'before' (final-review Fix 3)", () => {
+  // 2026-11-01 is a Sunday. The natural (unshifted) occurrence falls in
+  // November, but weekendSolveMode 'before' shifts it back to the preceding
+  // Friday, 2026-10-30 — so it should show up when querying OCTOBER's range,
+  // not November's, even though October's range itself never naturally
+  // contained Nov 1.
+  const config = {
+    frequency: 'monthly',
+    start: '2026-11-01',
+    patterns: [{ type: 'day', value: 1 }],
+    skipWeekend: true,
+    weekendSolveMode: 'before',
+  };
+
+  const octoberRange = { start: new Date(2026, 9, 1), end: new Date(2026, 9, 31, 23, 59, 59, 999) };
+  const octoberDates = expandOccurrences(config, octoberRange);
+  expect(octoberDates.map((d) => d.toISOString().slice(0, 10))).toEqual(['2026-10-30']);
+
+  // It must NOT also appear in November's range (that would double count it).
+  const novemberRange = { start: new Date(2026, 10, 1), end: new Date(2026, 10, 30, 23, 59, 59, 999) };
+  const novemberDates = expandOccurrences(config, novemberRange);
+  expect(novemberDates).toEqual([]);
+});
+
 test('expandOccurrences handles a monthly schedule with a day-of-week pattern (nth weekday)', () => {
   // "Every 2nd Tuesday" of the month. Nov 2026: Tuesdays are 3, 10, 17, 24 -> 2nd Tuesday is Nov 10.
   const config = {

@@ -37,9 +37,19 @@ beforeEach(() => {
   // exercises the unset case on its own); give every other test a
   // household-like timezone so day-of-month math is exercised realistically.
   process.env.TZ = 'America/Denver';
+  // Pin "today" instead of relying on the real wall clock (final-review Fix
+  // 4) — the test below asserting daysElapsed=0 for a "future" 2026-11
+  // request depends on "today" actually being before that month.
+  // `doNotFake` keeps the real HTTP fetch/server-listening machinery
+  // `withServer` relies on working.
+  jest.useFakeTimers({
+    now: new Date(2026, 9, 26, 10),
+    doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'queueMicrotask'],
+  });
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   process.env.TZ = ORIGINAL_TZ;
 });
 
