@@ -12,6 +12,8 @@ vi.mock('../src/redirect', () => ({
   }),
 }));
 vi.mock('../src/widgets/PacingBars.svelte', () => ({ default: class {} }));
+vi.mock('../src/widget-builder/mount-panel', () => ({ mountPanel: vi.fn() }));
+vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
 
 test('mountWidget still runs when accessing sessionStorage throws', async () => {
   const { mountWidget } = await import('../src/mount');
@@ -19,4 +21,12 @@ test('mountWidget still runs when accessing sessionStorage throws', async () => 
   await import('../src/index.js');
 
   expect(mountWidget).toHaveBeenCalled();
+});
+
+test('mountPanel is called to mount the widget-builder panel', async () => {
+  const { mountPanel } = await import('../src/widget-builder/mount-panel');
+
+  await import('../src/index.js');
+
+  expect(mountPanel).toHaveBeenCalled();
 });
