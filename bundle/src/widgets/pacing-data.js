@@ -9,7 +9,11 @@
  * @returns {{ fillPct: number, tickPct: number, status: 'under' | 'near' | 'over' }}
  */
 export function computeBarState({ budgeted, spent }, { daysElapsed, daysInMonth }) {
-  const fillPct = budgeted > 0 ? Math.min(spent / budgeted, 1) * 100 : 0;
+  // `spent` is clamped to a minimum of 0 before computing the fill: a
+  // refund-heavy category can have net inflow for the month (negative
+  // `spent`, by this point in the pipeline), which must never render as a
+  // negative-width bar.
+  const fillPct = budgeted > 0 ? Math.max(0, Math.min(spent / budgeted, 1)) * 100 : 0;
   const tickPct = (daysElapsed / daysInMonth) * 100;
 
   let status;

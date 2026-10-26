@@ -21,8 +21,18 @@ function stubClient(categoryGroups) {
   };
 }
 
+const ORIGINAL_TZ = process.env.TZ;
+
 beforeEach(() => {
   getActualClient.mockReset();
+  // The route requires TZ to be set (see the TZ-missing test below, which
+  // exercises the unset case on its own); give every other test a
+  // household-like timezone so day-of-month math is exercised realistically.
+  process.env.TZ = 'America/Denver';
+});
+
+afterEach(() => {
+  process.env.TZ = ORIGINAL_TZ;
 });
 
 test('omits a requested category id not present in the budget', async () => {
@@ -31,7 +41,8 @@ test('omits a requested category id not present in the budget', async () => {
       {
         id: 'group1',
         name: 'Everyday Expenses',
-        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: 4000 }],
+        // Actual stores outflows as negative; -4000 is $40 of real spending.
+        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000 }],
       },
     ])
   );
@@ -52,7 +63,7 @@ test('a category budgeted at 0 is included with budgeted: 0, not dropped or NaN'
       {
         id: 'group1',
         name: 'Everyday Expenses',
-        categories: [{ id: 'catB', name: 'Dining', budgeted: 0, spent: 500 }],
+        categories: [{ id: 'catB', name: 'Dining', budgeted: 0, spent: -500 }],
       },
     ])
   );
@@ -61,6 +72,46 @@ test('a category budgeted at 0 is included with budgeted: 0, not dropped or NaN'
     const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catB`);
     const body = await res.json();
     expect(body.categories[0]).toMatchObject({ id: 'catB', budgeted: 0, spent: 500 });
+  });
+});
+
+test('negates Actual\'s negative-outflow spent into a positive spending amount', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient([
+      {
+        id: 'group1',
+        name: 'Everyday Expenses',
+        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000 }],
+      },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`);
+    const body = await res.json();
+    expect(body.categories[0]).toMatchObject({ spent: 4000, budgeted: 10000 });
+  });
+});
+
+test('a refund-heavy category (net inflow) comes back with a negative spent after negation', async () => {
+  // Actual reports a net-positive `spent` for a category with more refunds
+  // than spending that month (net inflow); after our negation this becomes
+  // negative. The route passes it through as-is — clamping to a sane fill
+  // percentage is pacing-data.js's job, covered in bundle/test/pacing-data.test.js.
+  getActualClient.mockResolvedValue(
+    stubClient([
+      {
+        id: 'group1',
+        name: 'Everyday Expenses',
+        categories: [{ id: 'catC', name: 'Travel', budgeted: 10000, spent: 2000 }],
+      },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catC`);
+    const body = await res.json();
+    expect(body.categories[0]).toMatchObject({ spent: -2000, budgeted: 10000 });
   });
 });
 
@@ -73,6 +124,16 @@ test('computes daysInMonth and daysElapsed from the server clock, not Actual dat
     const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`);
     const body = await res.json();
     expect(body).toMatchObject({ month: '2026-11', daysInMonth: 30, daysElapsed: 0, categories: [] });
+  });
+});
+
+test('500s (loudly, not silently wrong) when TZ is not set on the server', async () => {
+  delete process.env.TZ;
+  getActualClient.mockResolvedValue(stubClient([]));
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`);
+    expect(res.status).toBe(500);
   });
 });
 
