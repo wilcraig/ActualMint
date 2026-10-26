@@ -8,17 +8,27 @@ const CLOSING = '}}';
 /**
  * Walk the live DOM for a text node whose content starts with `prefix`,
  * parse the JSON between the prefix and the matching closing `}}`, and
- * return the containing element plus the parsed config.
+ * return the containing element, the text node itself, plus the parsed
+ * config.
+ *
+ * Since mounting no longer removes or clears the placeholder text (it's
+ * wrapped and hidden in place instead — see mountWidget below), an
+ * already-handled placeholder's text node would otherwise keep matching on
+ * every later call. `skip` lets a caller pass in the text nodes it has
+ * already handled so the walk continues past them to find the next one.
  *
  * @param {string} prefix e.g. "{{ACTUALMINT:pacing-bars:"
- * @returns {{ node: HTMLElement, config: unknown } | null}
+ * @param {WeakSet<Text>} [skip]
+ * @returns {{ node: HTMLElement, textNode: Text, config: unknown } | null}
  */
-export function findPlaceholder(prefix) {
+export function findPlaceholder(prefix, skip) {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 
   let textNode;
   // eslint-disable-next-line no-cond-assign
   while ((textNode = walker.nextNode())) {
+    if (skip && skip.has(textNode)) continue;
+
     const text = textNode.nodeValue;
     if (!text) continue;
 
@@ -41,24 +51,42 @@ export function findPlaceholder(prefix) {
     const host = textNode.parentElement;
     if (!host) continue;
 
-    return { node: host, config };
+    return { node: host, textNode, config };
   }
 
   return null;
 }
 
+// Class applied to the wrapper we create around the original placeholder
+// text node, so it's hidden instead of removed (see mountWidget below).
+const HIDDEN_PLACEHOLDER_CLASS = 'actualmint-hidden-placeholder';
+
 const OBSERVE_OPTIONS = { childList: true, subtree: true, characterData: true };
 
 /**
  * Watches the DOM for a placeholder matching `prefix` (including after
- * Actual's own client-side navigation) and calls `render(host, config)`
- * exactly once per distinct host element, hiding the placeholder text
- * first. Errors thrown by `render` are caught, logged, and never propagate.
+ * Actual's own client-side navigation) and calls `render(mountHost, config)`
+ * exactly once per distinct placeholder text node, hiding (never deleting)
+ * the placeholder text first. Errors thrown by `render` are caught, logged,
+ * and never propagate.
+ *
+ * Actual's own React tree owns the placeholder text node (it's the content
+ * of a Text widget rendered by React/a markdown renderer). Deleting or
+ * reparenting-and-clearing it risks a `NotFoundError` if React's reconciler
+ * later tries to update or remove that same node — so instead of clearing
+ * the host's content, we wrap the original text node in a new, hidden
+ * `<span>` (leaving the text node itself untouched and still present in the
+ * DOM) and mount the widget into a brand-new sibling `<div>` we create for
+ * that purpose.
  *
  * @param {string} prefix
- * @param {(host: HTMLElement, config: unknown) => void} render
+ * @param {(mountHost: HTMLElement, config: unknown) => void} render
  */
 export function mountWidget(prefix, render) {
+  // Keyed by the placeholder text node itself (not the host element it
+  // started out in) because wrapping moves the text node under a new
+  // parent — tracking by its original parent would make every subsequent
+  // scan see it as "not yet mounted" and re-mount it forever.
   const mounted = new WeakSet();
   let scheduled = false;
 
@@ -69,28 +97,42 @@ export function mountWidget(prefix, render) {
     // DOM environment) has gone away; bail out rather than throw.
     if (typeof document === 'undefined') return;
 
-    // `findPlaceholder` only ever returns the first match it walks into, so
-    // a single DOM snapshot can hold several not-yet-mounted placeholders
-    // (e.g. two "pacing-bars" widgets on the same report). Loop until a
-    // scan turns up nothing new, mounting each host as we clear its
-    // placeholder text so the next pass's walk finds the next one.
+    // `findPlaceholder` only ever returns the first non-`mounted` match it
+    // walks into, so a single DOM snapshot can hold several not-yet-mounted
+    // placeholders (e.g. two "pacing-bars" widgets on the same report).
+    // Loop until a scan turns up nothing new; `mounted` (passed as `skip`)
+    // makes each already-handled placeholder's text node invisible to the
+    // next call so the walk continues on to find the next one.
     for (;;) {
-      const found = findPlaceholder(prefix);
+      const found = findPlaceholder(prefix, mounted);
       if (!found) break;
 
-      const { node: host, config } = found;
-      if (mounted.has(host)) break; // safety net: avoid looping forever on an unclearable match
-      mounted.add(host);
+      const { node: host, textNode, config } = found;
+      mounted.add(textNode);
 
-      // Mutating the host ourselves (clearing the placeholder, then letting
-      // `render` populate it) would otherwise re-trigger this same observer.
-      // Disconnect for the duration of our own write, then resume watching
-      // for the next placeholder to appear elsewhere in the document.
+      // Mutating the DOM ourselves (hiding the placeholder, then letting
+      // `render` populate a sibling) would otherwise re-trigger this same
+      // observer. Disconnect for the duration of our own write, then resume
+      // watching for the next placeholder to appear elsewhere in the
+      // document.
       observer.disconnect();
-      host.textContent = '';
+
+      // Hide the original placeholder text non-destructively: wrap it in a
+      // span (a raw Text node can't take a style of its own) and hide that
+      // span, rather than deleting or clearing a node React created.
+      const hiddenWrapper = document.createElement('span');
+      hiddenWrapper.className = HIDDEN_PLACEHOLDER_CLASS;
+      hiddenWrapper.style.display = 'none';
+      textNode.parentNode.insertBefore(hiddenWrapper, textNode);
+      hiddenWrapper.appendChild(textNode);
+
+      // Mount into a new element of our own rather than the (React-owned)
+      // host, so we never need to touch host's existing children again.
+      const mountHost = document.createElement('div');
+      host.appendChild(mountHost);
 
       try {
-        render(host, config);
+        render(mountHost, config);
       } catch (error) {
         console.error('[ActualMint] mountWidget render callback threw:', error);
       } finally {
