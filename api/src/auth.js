@@ -17,6 +17,12 @@ const CACHE_TTL_MS = 60 * 1000;
 // token -> { valid, expiresAt }
 const cache = new Map();
 
+// token -> in-flight checkWithActual() promise, so concurrent callers for the
+// same uncached token share one network call instead of each starting their
+// own (two widgets loading on the same page must share the auth cache, not
+// each independently hit actual:5006).
+const inFlight = new Map();
+
 async function checkWithActual(token) {
   const serverUrl = process.env.ACTUAL_SERVER_URL;
   try {
@@ -25,9 +31,13 @@ async function checkWithActual(token) {
     });
     const text = await res.text();
     const { status } = JSON.parse(text);
-    return status === 'ok';
+    // Only a definitive 'ok'/'error' answer from Actual is cacheable; a
+    // thrown error (network failure, timeout, non-JSON body) below returns
+    // `definitive: false` so the caller does not cache a negative result for
+    // what may just be a transient hiccup.
+    return { definitive: status === 'ok' || status === 'error', valid: status === 'ok' };
   } catch {
-    return false;
+    return { definitive: false, valid: false };
   }
 }
 
@@ -41,8 +51,17 @@ async function validateToken(token) {
     return cached.valid;
   }
 
-  const valid = await checkWithActual(token);
-  cache.set(token, { valid, expiresAt: Date.now() + CACHE_TTL_MS });
+  let pending = inFlight.get(token);
+  if (!pending) {
+    pending = checkWithActual(token);
+    inFlight.set(token, pending);
+    pending.finally(() => inFlight.delete(token));
+  }
+
+  const { definitive, valid } = await pending;
+  if (definitive) {
+    cache.set(token, { valid, expiresAt: Date.now() + CACHE_TTL_MS });
+  }
   return valid;
 }
 
