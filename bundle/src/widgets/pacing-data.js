@@ -27,3 +27,84 @@ export function computeBarState({ budgeted, spent }, { daysElapsed, daysInMonth 
 
   return { fillPct, tickPct, status };
 }
+
+// This account's budget type is "tracking": a category with carryover
+// enabled rolls its prior month's surplus or deficit into `balance`, while
+// one with carryover off has `balance === budgeted - spent` for the month
+// alone. Either way, `balance + spent` recovers "total available to spend
+// this cycle" -- the right denominator to pace against -- without needing
+// to branch on the carryover flag: when there's no rollover the term is
+// zero and this reduces to the plain monthly `budgeted` figure.
+function effectiveBudget(category) {
+  return category.balance + category.spent;
+}
+
+/**
+ * Collects every category id referenced by a pacing-bars `items` config,
+ * whether as a plain category id string or inside a rollup's `budgets`
+ * list, deduplicated, for a single batched /api/budget-pacing request.
+ * @param {(string | { title: string, budgets: string[] })[]} items
+ * @returns {string[]}
+ */
+export function collectCategoryIds(items) {
+  const ids = new Set();
+  for (const item of items) {
+    if (typeof item === 'string') {
+      ids.add(item);
+    } else if (item && Array.isArray(item.budgets)) {
+      for (const id of item.budgets) ids.add(id);
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Turns the widget's `items` config plus the API's flat per-category
+ * results into the rows PacingBars.svelte renders. A plain category id
+ * becomes its own 'category' row; a `{title, budgets}` rollup becomes one
+ * 'rollup' row whose spent/budgeted are the sum across its member
+ * categories' spent and rollover-aware available amounts. A rollup with no
+ * resolvable members (every listed id absent from the API response, e.g. a
+ * deleted category) is omitted rather than shown as an empty $0 bar; an
+ * item that's neither a known string id nor a well-formed rollup object is
+ * skipped the same way, so a malformed placeholder degrades quietly
+ * instead of crashing the widget.
+ * @param {(string | { title: string, budgets: string[] })[]} items
+ * @param {{ id: string, name: string, groupId: string, groupName: string, spent: number, balance: number }[]} categories
+ * @returns {Array<{ kind: 'category' | 'rollup', id: string, name: string, spent: number, budgeted: number, groupId?: string, groupName?: string }>}
+ */
+export function buildPacingRows(items, categories) {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const rows = [];
+
+  for (const item of items) {
+    if (typeof item === 'string') {
+      const cat = byId.get(item);
+      if (!cat) continue;
+      rows.push({
+        kind: 'category',
+        id: cat.id,
+        name: cat.name,
+        groupId: cat.groupId,
+        groupName: cat.groupName,
+        spent: cat.spent,
+        budgeted: effectiveBudget(cat),
+      });
+      continue;
+    }
+
+    if (item && typeof item === 'object' && typeof item.title === 'string' && Array.isArray(item.budgets)) {
+      const members = item.budgets.map((id) => byId.get(id)).filter(Boolean);
+      if (members.length === 0) continue;
+      rows.push({
+        kind: 'rollup',
+        id: `rollup:${item.title}`,
+        name: item.title,
+        spent: members.reduce((sum, c) => sum + c.spent, 0),
+        budgeted: members.reduce((sum, c) => sum + effectiveBudget(c), 0),
+      });
+    }
+  }
+
+  return rows;
+}

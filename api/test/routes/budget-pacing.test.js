@@ -70,7 +70,7 @@ test('omits a requested category id not present in the budget', async () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.categories).toEqual([
-      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000, balance: 0 },
     ]);
   });
 });
@@ -130,6 +130,45 @@ test('a refund-heavy category (net inflow) comes back with a negative spent afte
     const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catC`, { headers: AUTH_HEADERS });
     const body = await res.json();
     expect(body.categories[0]).toMatchObject({ spent: -2000, budgeted: 10000 });
+  });
+});
+
+test('passes through balance unchanged, for callers to account for tracking-budget rollover', async () => {
+  // A category with carryover enabled rolls last month's $20 surplus into
+  // this month's balance: budgeted 100, spent 40, balance 80 (not the 60
+  // you'd get from this month's budgeted/spent alone).
+  getActualClient.mockResolvedValue(
+    stubClient([
+      {
+        id: 'group1',
+        name: 'Everyday Expenses',
+        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000, balance: 8000 }],
+      },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.categories[0]).toMatchObject({ budgeted: 10000, spent: 4000, balance: 8000 });
+  });
+});
+
+test('a category with no balance field (e.g. income) defaults balance to 0', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient([
+      {
+        id: 'group1',
+        name: 'Everyday Expenses',
+        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000 }],
+      },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.categories[0]).toMatchObject({ balance: 0 });
   });
 });
 
@@ -207,7 +246,7 @@ test('proceeds normally with a valid token', async () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.categories).toEqual([
-      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000, balance: 0 },
     ]);
     expect(validateToken).toHaveBeenCalledWith('valid-test-token');
   });

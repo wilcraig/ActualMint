@@ -20,7 +20,7 @@ test('each pacing row is a real <button> (keyboard-accessible), and clicking it 
         daysElapsed: 10,
         daysInMonth: 30,
         categories: [
-          { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+          { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', spent: 4000, balance: 6000 },
         ],
       }),
     )
@@ -28,7 +28,7 @@ test('each pacing row is a real <button> (keyboard-accessible), and clicking it 
 
   document.body.innerHTML = '<div id="host"></div>';
   const target = document.getElementById('host');
-  new PacingBars({ target, props: { categoryIds: ['catA'] } });
+  new PacingBars({ target, props: { items: ['catA'] } });
 
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -65,7 +65,7 @@ test('the opened modal is mounted onto document.body, not inside the widget\'s o
         daysElapsed: 10,
         daysInMonth: 30,
         categories: [
-          { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+          { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', spent: 4000, balance: 6000 },
         ],
       }),
     )
@@ -73,7 +73,7 @@ test('the opened modal is mounted onto document.body, not inside the widget\'s o
 
   document.body.innerHTML = '<div id="host"></div>';
   const target = document.getElementById('host');
-  new PacingBars({ target, props: { categoryIds: ['catA'] } });
+  new PacingBars({ target, props: { items: ['catA'] } });
 
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));

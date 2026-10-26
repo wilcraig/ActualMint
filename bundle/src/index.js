@@ -13,8 +13,8 @@ try {
   // pacing-bars widget below from mounting.
 }
 
-mountWidget('{{ACTUALMINT:pacing-bars:', (host, categoryIds) => {
-  new PacingBars({ target: host, props: { categoryIds } });
+mountWidget('{{ACTUALMINT:pacing-bars:', (host, items) => {
+  new PacingBars({ target: host, props: { items } });
 });
 
 // MonthEndNet takes no config (mount.js still requires the placeholder's body

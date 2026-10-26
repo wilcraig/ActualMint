@@ -1,12 +1,16 @@
 <script>
   import { mount, unmount } from 'svelte';
-  import { computeBarState } from './pacing-data';
+  import { computeBarState, collectCategoryIds, buildPacingRows } from './pacing-data';
   import { fetchApi } from '../api-client';
   import CategoryBreakdownModal from './CategoryBreakdownModal.svelte';
 
-  let { categoryIds = [] } = $props();
+  // Each entry is either a plain category id string (its own bar) or a
+  // rollup object `{ title, budgets: [categoryId, ...] }` that combines
+  // several categories' spent/available amounts into one bar labeled
+  // `title` -- see buildPacingRows in pacing-data.js for the shaping logic.
+  let { items = [] } = $props();
 
-  let categories = $state(null);
+  let rows = $state(null);
   let errorMessage = $state(null);
 
   // The modal is mounted imperatively onto `document.body` -- not rendered
@@ -52,11 +56,11 @@
 
   async function load() {
     errorMessage = null;
-    categories = null;
+    rows = null;
 
     try {
       const month = currentMonth();
-      const params = new URLSearchParams({ month, categories: categoryIds.join(',') });
+      const params = new URLSearchParams({ month, categories: collectCategoryIds(items).join(',') });
       const response = await fetchApi(`/api/budget-pacing?${params}`);
 
       if (!response.ok) {
@@ -65,10 +69,10 @@
       }
 
       const data = await response.json();
-      categories = data.categories.map((category) => ({
-        ...category,
+      rows = buildPacingRows(items, data.categories).map((row) => ({
+        ...row,
         bar: computeBarState(
-          { budgeted: category.budgeted, spent: category.spent },
+          { budgeted: row.budgeted, spent: row.spent },
           { daysElapsed: data.daysElapsed, daysInMonth: data.daysInMonth },
         ),
       }));
@@ -84,30 +88,44 @@
   }
 </script>
 
+<!-- Shared bar markup for both a clickable single-category row and a
+     non-clickable rollup row (a rollup has no single category to drill
+     into, so CategoryBreakdownModal -- which takes exactly one categoryId
+     -- doesn't apply to it). -->
+{#snippet barContent(row)}
+  <div class="pacing-row-header">
+    <span class="pacing-name">{row.name}</span>
+    <span class="pacing-amounts">
+      {formatCents(row.spent)} / {formatCents(row.budgeted)}
+    </span>
+  </div>
+  <div class="pacing-track">
+    <div
+      class="pacing-fill pacing-fill--{row.bar.status}"
+      style:width="{row.bar.fillPct}%"
+    ></div>
+    <div class="pacing-tick" style:left="{row.bar.tickPct}%"></div>
+  </div>
+{/snippet}
+
 <div class="actualmint-pacing-bars">
   {#if errorMessage}
     <p class="pacing-error" role="alert">{errorMessage}</p>
-  {:else if categories === null}
+  {:else if rows === null}
     <p class="pacing-loading">Loading budget pacing…</p>
-  {:else if categories.length === 0}
+  {:else if rows.length === 0}
     <p class="pacing-empty">No pacing categories to show.</p>
   {:else}
-    {#each categories as category (category.id)}
-      <button type="button" class="pacing-row" onclick={() => openBreakdown(category)}>
-        <div class="pacing-row-header">
-          <span class="pacing-name">{category.name}</span>
-          <span class="pacing-amounts">
-            {formatCents(category.spent)} / {formatCents(category.budgeted)}
-          </span>
+    {#each rows as row (row.id)}
+      {#if row.kind === 'category'}
+        <button type="button" class="pacing-row" onclick={() => openBreakdown(row)}>
+          {@render barContent(row)}
+        </button>
+      {:else}
+        <div class="pacing-row pacing-row--rollup">
+          {@render barContent(row)}
         </div>
-        <div class="pacing-track">
-          <div
-            class="pacing-fill pacing-fill--{category.bar.status}"
-            style:width="{category.bar.fillPct}%"
-          ></div>
-          <div class="pacing-tick" style:left="{category.bar.tickPct}%"></div>
-        </div>
-      </button>
+      {/if}
     {/each}
   {/if}
 </div>
@@ -146,6 +164,13 @@
     color: inherit;
     text-align: inherit;
     cursor: pointer;
+  }
+
+  /* A rollup row has no single category to drill into, so it's a plain
+     <div> rather than a <button> -- undo the pointer cursor .pacing-row
+     sets for the (button-only) single-category case. */
+  .pacing-row--rollup {
+    cursor: default;
   }
 
   .pacing-row-header {
