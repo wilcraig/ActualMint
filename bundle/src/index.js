@@ -2,6 +2,7 @@ import { mountWidget } from './mount';
 import { maybeRedirectToReports } from './redirect';
 import PacingBars from './widgets/PacingBars.svelte';
 import MonthEndNet from './widgets/MonthEndNet.svelte';
+import PaycheckAlertBanner from './widgets/PaycheckAlertBanner.svelte';
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
@@ -22,4 +23,14 @@ mountWidget('{{ACTUALMINT:pacing-bars:', (host, categoryIds) => {
 //   {{ACTUALMINT:month-end-net:null}}
 mountWidget('{{ACTUALMINT:month-end-net:', (host) => {
   new MonthEndNet({ target: host });
+});
+
+// PaycheckAlertBanner takes no config (mount.js still requires the
+// placeholder's body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:paycheck-alerts:}}` fails to parse and the widget never
+// mounts). To add this widget, type the following literal text into an
+// Actual Reports "Text widget":
+//   {{ACTUALMINT:paycheck-alerts:null}}
+mountWidget('{{ACTUALMINT:paycheck-alerts:', (host) => {
+  new PaycheckAlertBanner({ target: host });
 });
