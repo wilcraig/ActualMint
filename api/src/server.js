@@ -3,6 +3,7 @@ const { hasEverConnected } = require('./actual-client');
 const { validateToken } = require('./auth');
 const budgetPacingRouter = require('./routes/budget-pacing');
 const categoriesRouter = require('./routes/categories');
+const accountsRouter = require('./routes/accounts');
 
 const app = express();
 
@@ -22,6 +23,7 @@ async function requireAuth(req, res, next) {
 app.use('/api', requireAuth);
 app.use('/api/budget-pacing', budgetPacingRouter);
 app.use('/api/categories', categoriesRouter);
+app.use('/api/accounts', accountsRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
