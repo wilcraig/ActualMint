@@ -70,7 +70,7 @@ test('omits a requested category id not present in the budget', async () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.categories).toEqual([
-      { id: 'catA', name: 'Groceries', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
     ]);
   });
 });
@@ -207,8 +207,22 @@ test('proceeds normally with a valid token', async () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.categories).toEqual([
-      { id: 'catA', name: 'Groceries', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+      { id: 'catA', name: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
     ]);
     expect(validateToken).toHaveBeenCalledWith('valid-test-token');
+  });
+});
+
+test('includes the category\'s group id alongside groupName', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient([
+      { id: 'group1', name: 'Everyday Expenses', categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000 }] },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.categories[0]).toMatchObject({ id: 'catA', groupId: 'group1', groupName: 'Everyday Expenses' });
   });
 });

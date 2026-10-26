@@ -33,6 +33,7 @@ function indexCategoriesById(categoryGroups) {
       byId.set(category.id, {
         id: category.id,
         name: category.name,
+        groupId: group.id,
         groupName: group.name,
         // Both fields are absent on plain income categories; default to 0
         // rather than surface `undefined`/NaN to callers.
