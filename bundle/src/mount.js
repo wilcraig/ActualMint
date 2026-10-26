@@ -36,17 +36,28 @@ export function findPlaceholder(prefix, skip) {
     if (start === -1) continue;
 
     const jsonStart = start + prefix.length;
-    const end = text.indexOf(CLOSING, jsonStart);
-    if (end === -1) continue;
 
-    const rawConfig = text.slice(jsonStart, end);
-
+    // The JSON body can itself be an object ending in `}` (e.g.
+    // `{{ACTUALMINT:month-end-net:{}}}`), so the first `}}` found isn't
+    // necessarily the real closing delimiter. Try each successive `}}`
+    // occurrence in turn until one parses as valid JSON.
     let config;
-    try {
-      config = JSON.parse(rawConfig);
-    } catch {
-      continue;
+    let parsed = false;
+    let searchFrom = jsonStart;
+    for (;;) {
+      const end = text.indexOf(CLOSING, searchFrom);
+      if (end === -1) break;
+
+      const rawConfig = text.slice(jsonStart, end);
+      try {
+        config = JSON.parse(rawConfig);
+        parsed = true;
+        break;
+      } catch {
+        searchFrom = end + 1;
+      }
     }
+    if (!parsed) continue;
 
     const host = textNode.parentElement;
     if (!host) continue;

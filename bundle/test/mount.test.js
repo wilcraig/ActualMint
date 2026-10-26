@@ -1,4 +1,5 @@
 import { findPlaceholder, mountWidget } from '../src/mount';
+import { buildPlaceholder } from '../src/widget-builder/placeholder';
 
 test('finds and parses a placeholder with valid JSON config', () => {
   document.body.innerHTML = '<div id="host">{{ACTUALMINT:pacing-bars:["catA","catB"]}}</div>';
@@ -80,6 +81,44 @@ test('mounts into a new sibling element rather than clearing the host', () => {
   expect(host.contains(receivedMountHost)).toBe(true);
   // Both the hidden wrapper and the new mount host are children of #host.
   expect(host.children.length).toBe(2);
+});
+
+describe('findPlaceholder parses all buildPlaceholder body shapes', () => {
+  test('single-field (raw array) body', () => {
+    const placeholder = buildPlaceholder('pacing-bars', [{ key: 'categories' }], {
+      categories: ['catA', 'catB'],
+    });
+    expect(placeholder).toBe('{{ACTUALMINT:pacing-bars:["catA","catB"]}}');
+    document.body.innerHTML = `<div id="host">${placeholder}</div>`;
+
+    const result = findPlaceholder('{{ACTUALMINT:pacing-bars:');
+    expect(result).not.toBeNull();
+    expect(result.config).toEqual(['catA', 'catB']);
+  });
+
+  test('multi-field (keyed object) body', () => {
+    const placeholder = buildPlaceholder(
+      'month-end-net',
+      [{ key: 'accountId' }, { key: 'months' }],
+      { accountId: 'acc1', months: 6 },
+    );
+    expect(placeholder).toBe('{{ACTUALMINT:month-end-net:{"accountId":"acc1","months":6}}}');
+    document.body.innerHTML = `<div id="host">${placeholder}</div>`;
+
+    const result = findPlaceholder('{{ACTUALMINT:month-end-net:');
+    expect(result).not.toBeNull();
+    expect(result.config).toEqual({ accountId: 'acc1', months: 6 });
+  });
+
+  test('zero-field (empty object) body', () => {
+    const placeholder = buildPlaceholder('month-end-net', [], {});
+    expect(placeholder).toBe('{{ACTUALMINT:month-end-net:{}}}');
+    document.body.innerHTML = `<div id="host">${placeholder}</div>`;
+
+    const result = findPlaceholder('{{ACTUALMINT:month-end-net:');
+    expect(result).not.toBeNull();
+    expect(result.config).toEqual({});
+  });
 });
 
 test('a later DOM mutation does not cause the same placeholder to be re-mounted', async () => {
