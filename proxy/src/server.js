@@ -23,6 +23,28 @@ const DECODERS = {
   br: zlib.brotliDecompress,
 };
 
+// RFC 7230 hop-by-hop headers: meaningful only for the immediate client/server
+// connection, never for an intermediary to forward to a *new* connection.
+// Forwarding these verbatim (especially `connection`) on a reused keep-alive
+// socket corrupts response framing under concurrent load — intermittent
+// 400s/ERR_ABORTED on otherwise-identical requests, worse the busier the page.
+const HOP_BY_HOP_HEADERS = [
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailers',
+  'transfer-encoding',
+  'upgrade',
+];
+
+function forwardableHeaders(reqHeaders, host) {
+  const headers = { ...reqHeaders, host };
+  for (const name of HOP_BY_HOP_HEADERS) delete headers[name];
+  return headers;
+}
+
 // Decodes a buffered upstream body so HTML can be rewritten. Identity bodies pass through.
 function decodeBody(buffer, encoding, callback) {
   const decoder = encoding && DECODERS[encoding.trim().toLowerCase()];
@@ -37,11 +59,12 @@ function proxyTo(origin, rewriteHtml, req, res) {
   const target = new URL(`${origin.replace(/\/$/, '')}${req.originalUrl}`);
   const transport = target.protocol === 'https:' ? https : http;
 
-  // Only the host header is replaced; the upstream expects its own Host.
-  // accept-encoding is forwarded unchanged; HTML bodies are decoded in decodeBody before rewriting.
-  const headers = { ...req.headers, host: target.host };
+  // Host is replaced (the upstream expects its own); hop-by-hop headers are
+  // stripped (see HOP_BY_HOP_HEADERS). accept-encoding is forwarded unchanged;
+  // HTML bodies are decoded in decodeBody before rewriting.
+  const headers = forwardableHeaders(req.headers, target.host);
 
-  const upstreamReq = transport.request(target, { method: req.method, headers }, (upstreamRes) => {
+  const upstreamReq = transport.request(target, { method: req.method, headers, agent: false }, (upstreamRes) => {
     const contentType = upstreamRes.headers['content-type'] || '';
 
     if (!rewriteHtml || !contentType.includes('text/html')) {
