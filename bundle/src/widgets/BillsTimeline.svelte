@@ -50,7 +50,7 @@
     <p class="bills-timeline-empty">Nothing upcoming this month.</p>
   {:else}
     <ul class="bills-timeline-list">
-      {#each items as item (item.scheduleId + item.date)}
+      {#each items as item, i (item.scheduleId + item.date + i)}
         <li class="bills-timeline-row">
           <span class="bills-timeline-date">{item.date}</span>
           <span class="bills-timeline-payee">{item.payeeName}</span>

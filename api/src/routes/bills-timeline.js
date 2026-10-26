@@ -18,6 +18,11 @@ function parseMonth(month) {
   return { year: Number(yearStr), month: Number(monthStr) };
 }
 
+function firstDayOfMonth(month) {
+  const { year, month: m } = parseMonth(month);
+  return new Date(year, m - 1, 1);
+}
+
 // The LAST MOMENT of the last calendar day of `month`, not local midnight —
 // recurrence.js generates recurring occurrences at local noon (byHourOfDay:
 // [12]), so a midnight boundary would silently drop any recurring occurrence
@@ -61,6 +66,14 @@ router.get('/', async (req, res, next) => {
 
     const today = startOfLocalDay(new Date());
     const monthEnd = lastDayOfMonth(month);
+    // Clamp the range start to the later of "today" and the first day of the
+    // requested month: for a future month, "today" is still in an earlier
+    // month, and without this clamp the range would incorrectly span the
+    // rest of the CURRENT month's remaining days too (same fix as
+    // month-end-projection.js's rangeStart / final-review Fix 1). For the
+    // current or a past month this is a no-op (today is already >= the
+    // first of the month).
+    const rangeStart = new Date(Math.max(today.getTime(), firstDayOfMonth(month).getTime()));
 
     // An entirely past month has nothing "upcoming" left in it — a
     // legitimate empty answer, not an error, so skip fetching data entirely.
@@ -97,14 +110,18 @@ router.get('/', async (req, res, next) => {
 
       if (typeof schedule.date === 'string') {
         // One-time schedule: a plain 'YYYY-MM-DD' string with its single
-        // occurrence tracked separately in `next_date`.
+        // occurrence tracked separately in `next_date`. A non-completed
+        // one-time schedule should normally have `next_date` set, but guard
+        // against a malformed one (null/undefined) so it's skipped instead
+        // of crashing the whole response (parseDate throws on nullish input).
+        if (!schedule.next_date) continue;
         const nextDate = parseDate(schedule.next_date);
-        if (nextDate >= today && nextDate <= monthEnd) {
+        if (nextDate >= rangeStart && nextDate <= monthEnd) {
           items.push({ scheduleId: schedule.id, payeeName, date: schedule.next_date, amountCents });
         }
       } else {
         // RecurConfig: one item per occurrence date in range.
-        const occurrences = expandOccurrences(schedule.date, { start: today, end: monthEnd });
+        const occurrences = expandOccurrences(schedule.date, { start: rangeStart, end: monthEnd });
         for (const occurrence of occurrences) {
           items.push({ scheduleId: schedule.id, payeeName, date: formatDate(occurrence), amountCents });
         }

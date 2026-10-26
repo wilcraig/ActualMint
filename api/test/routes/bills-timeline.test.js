@@ -259,6 +259,86 @@ test('an entirely past month returns an empty items array, not an error', async 
   });
 });
 
+test('a future month only includes items dated within that month, not items between today and the start of that month', async () => {
+  // "today" is pinned to 2026-10-26. Requesting 2026-12 (a future month)
+  // must not leak in anything from Oct 26 through Nov 30 - only December's
+  // own items should appear. Regression test for the bug Plan 2c's
+  // final review already fixed once in month-end-projection.js: the range's
+  // lower bound must clamp to the first day of the requested month, not stay
+  // at "today" (final-review Fix 1).
+  const weeklyConfig = { frequency: 'weekly', start: '2026-10-01' }; // would occur Nov 5, 12, 19, 26 and Dec 3, 10, 17, 24, 31 - only the December ones should count
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'november-onetime',
+          completed: false,
+          amount: -4000,
+          payee: 'payeeA',
+          date: '2026-11-15',
+          next_date: '2026-11-15',
+        },
+        {
+          id: 'december-onetime',
+          completed: false,
+          amount: -3000,
+          payee: 'payeeA',
+          date: '2026-12-11',
+          next_date: '2026-12-11',
+        },
+        { id: 'weekly', completed: false, amount: -1500, payee: 'payeeA', date: weeklyConfig },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-12`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const dates = body.items.map((item) => item.date);
+    expect(dates).not.toContain('2026-11-15');
+    expect(dates.every((d) => d.startsWith('2026-12'))).toBe(true);
+    expect(dates).toEqual(['2026-12-03', '2026-12-10', '2026-12-11', '2026-12-17', '2026-12-24', '2026-12-31']);
+  });
+});
+
+test('a one-time schedule with a null next_date is skipped instead of crashing the whole response', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'malformed',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          date: '2026-10-30',
+          next_date: null,
+        },
+        {
+          id: 'fine',
+          completed: false,
+          amount: -2000,
+          payee: 'payeeA',
+          date: '2026-10-28',
+          next_date: '2026-10-28',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toEqual([
+      { scheduleId: 'fine', payeeName: 'Acme Gym', date: '2026-10-28', amountCents: -2000 },
+    ]);
+  });
+});
+
 test('a missing or malformed month 400s', async () => {
   getActualClient.mockResolvedValue(stubClient());
 
