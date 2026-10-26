@@ -33,10 +33,9 @@ function proxyToAbt(req, res) {
   const target = new URL(`${ABT_ORIGIN.replace(/\/$/, '')}${req.originalUrl}`);
   const transport = target.protocol === 'https:' ? https : http;
 
-  // Drop hop-specific and host headers; the upstream sets its own Host.
+  // Only the host header is replaced; the upstream expects its own Host.
+  // accept-encoding is forwarded unchanged; HTML bodies are decoded in decodeBody before rewriting.
   const headers = { ...req.headers, host: target.host };
-  // Ask upstream for an identity body so HTML can be rewritten without decoding.
-  delete headers['accept-encoding'];
 
   const upstreamReq = transport.request(target, { method: req.method, headers }, (upstreamRes) => {
     const contentType = upstreamRes.headers['content-type'] || '';
