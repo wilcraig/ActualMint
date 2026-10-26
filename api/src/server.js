@@ -3,6 +3,7 @@ const { hasEverConnected } = require('./actual-client');
 const { validateToken } = require('./auth');
 const budgetPacingRouter = require('./routes/budget-pacing');
 const monthEndProjectionRouter = require('./routes/month-end-projection');
+const paycheckAlertsRouter = require('./routes/paycheck-alerts');
 const spendingBreakdownRouter = require('./routes/spending-breakdown');
 
 const app = express();
@@ -23,6 +24,7 @@ async function requireAuth(req, res, next) {
 app.use('/api', requireAuth);
 app.use('/api/budget-pacing', budgetPacingRouter);
 app.use('/api/month-end-projection', monthEndProjectionRouter);
+app.use('/api/paycheck-alerts', paycheckAlertsRouter);
 app.use('/api/spending-breakdown', spendingBreakdownRouter);
 
 app.get('/health', (req, res) => {
