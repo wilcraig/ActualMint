@@ -1,5 +1,6 @@
 <script>
   import { computeBarState } from './pacing-data';
+  import { fetchApi } from '../api-client';
 
   let { categoryIds = [] } = $props();
 
@@ -20,7 +21,7 @@
     try {
       const month = currentMonth();
       const params = new URLSearchParams({ month, categories: categoryIds.join(',') });
-      const response = await fetch(`/api/budget-pacing?${params}`);
+      const response = await fetchApi(`/api/budget-pacing?${params}`);
 
       if (!response.ok) {
         errorMessage = `Pacing data unavailable (${response.status})`;
