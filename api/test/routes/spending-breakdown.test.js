@@ -38,6 +38,22 @@ function stubClient(responsesByTable) {
   };
 }
 
+// `q` is the real (unmocked) `@actual-app/api` builder, so a `Query` object
+// passed to the mocked `aqlQuery` has gone through the real filter/groupBy/
+// select chain. Returns the serialized state of the call made against
+// `table`, so a test can assert the exact field paths the route built —
+// e.g. `'category.group.is_income'` not a typo'd `'category.grop...'` —
+// which a table-name-keyed canned response alone would never catch (a typo
+// just produces an empty/wrong result set against a real database; against
+// this stub it'd still "work" since the stub never inspects the filter).
+function serializedQueryFor(client, table) {
+  const call = client.aqlQuery.mock.calls.find(([query]) => query.serialize().table === table);
+  if (!call) {
+    throw new Error(`serializedQueryFor: aqlQuery was never called for table "${table}"`);
+  }
+  return call[0].serialize();
+}
+
 beforeEach(() => {
   getActualClient.mockReset();
   validateToken.mockReset();
@@ -45,19 +61,18 @@ beforeEach(() => {
 });
 
 test('level=groups aggregates spending by category group, excluding income groups', async () => {
-  getActualClient.mockResolvedValue(
-    stubClient({
-      transactions: [
-        { groupId: 'group1', amountCents: -4000 },
-        { groupId: 'group2', amountCents: -1500 },
-      ],
-      category_groups: [
-        { id: 'group1', name: 'Everyday Expenses', is_income: false },
-        { id: 'group2', name: 'Housing', is_income: false },
-        { id: 'group3', name: 'Paychecks', is_income: true },
-      ],
-    })
-  );
+  const client = stubClient({
+    transactions: [
+      { groupId: 'group1', amountCents: -4000 },
+      { groupId: 'group2', amountCents: -1500 },
+    ],
+    category_groups: [
+      { id: 'group1', name: 'Everyday Expenses', is_income: false },
+      { id: 'group2', name: 'Housing', is_income: false },
+      { id: 'group3', name: 'Paychecks', is_income: true },
+    ],
+  });
+  getActualClient.mockResolvedValue(client);
 
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=groups`, { headers: AUTH_HEADERS });
@@ -70,6 +85,17 @@ test('level=groups aggregates spending by category group, excluding income group
         { id: 'group2', label: 'Housing', amountCents: 1500 },
       ],
     });
+
+    // Assert on the REAL Query object's serialized shape (q() is the real,
+    // unmocked builder) so a typo'd field path — e.g.
+    // 'category.grop.is_income' or grouping by the wrong field — fails this
+    // test even though the stub above never looks at the filter contents.
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group.is_income': false },
+    ]);
+    expect(serialized.groupExpressions).toEqual(['category.group']);
+    expect(serialized.selectExpressions).toEqual([{ groupId: 'category.group' }, { amountCents: { $sum: '$amount' } }]);
   });
 });
 
@@ -84,18 +110,17 @@ test('level=categories requires groupId (400 without it)', async () => {
 });
 
 test('level=categories aggregates spending by category within the given group', async () => {
-  getActualClient.mockResolvedValue(
-    stubClient({
-      transactions: [
-        { categoryId: 'catA', amountCents: -2500 },
-        { categoryId: 'catB', amountCents: -750 },
-      ],
-      categories: [
-        { id: 'catA', name: 'Groceries', group: 'group1' },
-        { id: 'catB', name: 'Dining', group: 'group1' },
-      ],
-    })
-  );
+  const client = stubClient({
+    transactions: [
+      { categoryId: 'catA', amountCents: -2500 },
+      { categoryId: 'catB', amountCents: -750 },
+    ],
+    categories: [
+      { id: 'catA', name: 'Groceries', group: 'group1' },
+      { id: 'catB', name: 'Dining', group: 'group1' },
+    ],
+  });
+  getActualClient.mockResolvedValue(client);
 
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=categories&groupId=group1`, {
@@ -110,6 +135,13 @@ test('level=categories aggregates spending by category within the given group', 
         { id: 'catB', label: 'Dining', amountCents: 750 },
       ],
     });
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group': 'group1' },
+    ]);
+    expect(serialized.groupExpressions).toEqual(['category']);
+    expect(serialized.selectExpressions).toEqual([{ categoryId: 'category' }, { amountCents: { $sum: '$amount' } }]);
   });
 });
 
@@ -124,15 +156,14 @@ test('level=payees requires categoryId (400 without it)', async () => {
 });
 
 test('level=payees aggregates spending by payee within the given category', async () => {
-  getActualClient.mockResolvedValue(
-    stubClient({
-      transactions: [
-        { payeeId: 'payeeA', amountCents: -3000 },
-        { payeeId: null, amountCents: -100 },
-      ],
-      payees: [{ id: 'payeeA', name: 'Trader Joes' }],
-    })
-  );
+  const client = stubClient({
+    transactions: [
+      { payeeId: 'payeeA', amountCents: -3000 },
+      { payeeId: null, amountCents: -100 },
+    ],
+    payees: [{ id: 'payeeA', name: 'Trader Joes' }],
+  });
+  getActualClient.mockResolvedValue(client);
 
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=payees&categoryId=catA`, {
@@ -147,6 +178,13 @@ test('level=payees aggregates spending by payee within the given category', asyn
         { id: null, label: '(No payee)', amountCents: 100 },
       ],
     });
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA' },
+    ]);
+    expect(serialized.groupExpressions).toEqual(['payee']);
+    expect(serialized.selectExpressions).toEqual([{ payeeId: 'payee' }, { amountCents: { $sum: '$amount' } }]);
   });
 });
 
