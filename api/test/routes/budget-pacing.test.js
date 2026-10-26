@@ -1,6 +1,10 @@
 jest.mock('../../src/actual-client');
+jest.mock('../../src/auth');
 
 const { getActualClient } = require('../../src/actual-client');
+const { validateToken } = require('../../src/auth');
+
+const AUTH_HEADERS = { 'X-ACTUAL-TOKEN': 'valid-test-token' };
 
 async function withServer(fn) {
   const app = require('../../src/server');
@@ -25,6 +29,10 @@ const ORIGINAL_TZ = process.env.TZ;
 
 beforeEach(() => {
   getActualClient.mockReset();
+  validateToken.mockReset();
+  // All of the behavioral tests below assume a valid session token; the
+  // auth-specific tests further down override this per case.
+  validateToken.mockResolvedValue(true);
   // The route requires TZ to be set (see the TZ-missing test below, which
   // exercises the unset case on its own); give every other test a
   // household-like timezone so day-of-month math is exercised realistically.
@@ -48,7 +56,7 @@ test('omits a requested category id not present in the budget', async () => {
   );
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA,catZ`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA,catZ`, { headers: AUTH_HEADERS });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.categories).toEqual([
@@ -69,7 +77,7 @@ test('a category budgeted at 0 is included with budgeted: 0, not dropped or NaN'
   );
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catB`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catB`, { headers: AUTH_HEADERS });
     const body = await res.json();
     expect(body.categories[0]).toMatchObject({ id: 'catB', budgeted: 0, spent: 500 });
   });
@@ -87,7 +95,7 @@ test('negates Actual\'s negative-outflow spent into a positive spending amount',
   );
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, { headers: AUTH_HEADERS });
     const body = await res.json();
     expect(body.categories[0]).toMatchObject({ spent: 4000, budgeted: 10000 });
   });
@@ -109,7 +117,7 @@ test('a refund-heavy category (net inflow) comes back with a negative spent afte
   );
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catC`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catC`, { headers: AUTH_HEADERS });
     const body = await res.json();
     expect(body.categories[0]).toMatchObject({ spent: -2000, budgeted: 10000 });
   });
@@ -121,7 +129,7 @@ test('computes daysInMonth and daysElapsed from the server clock, not Actual dat
   getActualClient.mockResolvedValue(stubClient([]));
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`, { headers: AUTH_HEADERS });
     const body = await res.json();
     expect(body).toMatchObject({ month: '2026-11', daysInMonth: 30, daysElapsed: 0, categories: [] });
   });
@@ -132,7 +140,7 @@ test('500s (loudly, not silently wrong) when TZ is not set on the server', async
   getActualClient.mockResolvedValue(stubClient([]));
 
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`);
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=`, { headers: AUTH_HEADERS });
     expect(res.status).toBe(500);
   });
 });
@@ -141,10 +149,56 @@ test('400s when month is missing or malformed', async () => {
   getActualClient.mockResolvedValue(stubClient([]));
 
   await withServer(async (base) => {
-    const missing = await fetch(`${base}/api/budget-pacing?categories=catA`);
+    const missing = await fetch(`${base}/api/budget-pacing?categories=catA`, { headers: AUTH_HEADERS });
     expect(missing.status).toBe(400);
 
-    const malformed = await fetch(`${base}/api/budget-pacing?month=not-a-month&categories=catA`);
+    const malformed = await fetch(`${base}/api/budget-pacing?month=not-a-month&categories=catA`, { headers: AUTH_HEADERS });
     expect(malformed.status).toBe(400);
+  });
+});
+
+test('401s with no token', async () => {
+  getActualClient.mockResolvedValue(stubClient([]));
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'unauthorized' });
+    expect(validateToken).not.toHaveBeenCalled();
+  });
+});
+
+test('401s with an invalid token', async () => {
+  validateToken.mockResolvedValue(false);
+  getActualClient.mockResolvedValue(stubClient([]));
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, {
+      headers: { 'X-ACTUAL-TOKEN': 'bogus-token' },
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'unauthorized' });
+  });
+});
+
+test('proceeds normally with a valid token', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient([
+      {
+        id: 'group1',
+        name: 'Everyday Expenses',
+        categories: [{ id: 'catA', name: 'Groceries', budgeted: 10000, spent: -4000 }],
+      },
+    ])
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/budget-pacing?month=2026-11&categories=catA`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.categories).toEqual([
+      { id: 'catA', name: 'Groceries', groupName: 'Everyday Expenses', budgeted: 10000, spent: 4000 },
+    ]);
+    expect(validateToken).toHaveBeenCalledWith('valid-test-token');
   });
 });
