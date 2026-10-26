@@ -69,26 +69,33 @@ export function mountWidget(prefix, render) {
     // DOM environment) has gone away; bail out rather than throw.
     if (typeof document === 'undefined') return;
 
-    const found = findPlaceholder(prefix);
-    if (!found) return;
+    // `findPlaceholder` only ever returns the first match it walks into, so
+    // a single DOM snapshot can hold several not-yet-mounted placeholders
+    // (e.g. two "pacing-bars" widgets on the same report). Loop until a
+    // scan turns up nothing new, mounting each host as we clear its
+    // placeholder text so the next pass's walk finds the next one.
+    for (;;) {
+      const found = findPlaceholder(prefix);
+      if (!found) break;
 
-    const { node: host, config } = found;
-    if (mounted.has(host)) return;
-    mounted.add(host);
+      const { node: host, config } = found;
+      if (mounted.has(host)) break; // safety net: avoid looping forever on an unclearable match
+      mounted.add(host);
 
-    // Mutating the host ourselves (clearing the placeholder, then letting
-    // `render` populate it) would otherwise re-trigger this same observer.
-    // Disconnect for the duration of our own write, then resume watching
-    // for the next placeholder to appear elsewhere in the document.
-    observer.disconnect();
-    host.textContent = '';
+      // Mutating the host ourselves (clearing the placeholder, then letting
+      // `render` populate it) would otherwise re-trigger this same observer.
+      // Disconnect for the duration of our own write, then resume watching
+      // for the next placeholder to appear elsewhere in the document.
+      observer.disconnect();
+      host.textContent = '';
 
-    try {
-      render(host, config);
-    } catch (error) {
-      console.error('[ActualMint] mountWidget render callback threw:', error);
-    } finally {
-      observer.observe(document.body, OBSERVE_OPTIONS);
+      try {
+        render(host, config);
+      } catch (error) {
+        console.error('[ActualMint] mountWidget render callback threw:', error);
+      } finally {
+        observer.observe(document.body, OBSERVE_OPTIONS);
+      }
     }
   };
 

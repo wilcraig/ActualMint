@@ -23,3 +23,23 @@ test('a throwing render callback is caught and does not propagate', () => {
 
   expect(consoleError).toHaveBeenCalled();
 });
+
+test('mounts every matching placeholder present in the same DOM snapshot', () => {
+  document.body.innerHTML = `
+    <div id="a">{{ACTUALMINT:pacing-bars:["x"]}}</div>
+    <div id="b">{{ACTUALMINT:pacing-bars:["y"]}}</div>
+  `;
+
+  const mountedHosts = [];
+  mountWidget('{{ACTUALMINT:pacing-bars:', (host, config) => {
+    mountedHosts.push({ host, config });
+  });
+
+  expect(mountedHosts.length).toBe(2);
+  expect(mountedHosts.map((m) => m.host)).toEqual(
+    expect.arrayContaining([document.getElementById('a'), document.getElementById('b')]),
+  );
+  expect(mountedHosts.map((m) => m.config)).toEqual(
+    expect.arrayContaining([['x'], ['y']]),
+  );
+});
