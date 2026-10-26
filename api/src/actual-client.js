@@ -7,6 +7,7 @@ const RECYCLE_MS = 60 * 60 * 1000;
 
 let clientPromise = null;
 let recycleTimer = null;
+let closing = null; // settles once the previous api.shutdown() has finished; never rejects
 let everConnected = false;
 
 function openClient() {
@@ -24,9 +25,7 @@ function scheduleRecycle() {
   recycleTimer.unref();
 }
 
-async function recycle() {
-  recycleTimer = null;
-  clientPromise = null;
+async function closeClient() {
   try {
     await api.shutdown();
   } catch (err) {
@@ -34,9 +33,21 @@ async function recycle() {
   }
 }
 
+function recycle() {
+  recycleTimer = null;
+  clientPromise = null;
+  // @actual-app/api is a single module, so no new init may start until this shutdown has settled.
+  const pending = closeClient();
+  closing = pending;
+  pending.then(() => {
+    if (closing === pending) closing = null;
+  });
+}
+
 function getActualClient() {
   if (!clientPromise) {
-    clientPromise = openClient().then(
+    const ready = closing ? closing.then(openClient) : openClient();
+    clientPromise = ready.then(
       (client) => {
         everConnected = true;
         scheduleRecycle();
