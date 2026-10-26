@@ -1,7 +1,10 @@
 const express = require('express');
 const { hasEverConnected } = require('./actual-client');
+const budgetPacingRouter = require('./routes/budget-pacing');
 
 const app = express();
+
+app.use('/api/budget-pacing', budgetPacingRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
