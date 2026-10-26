@@ -6,10 +6,12 @@ const zlib = require('zlib');
 const { injectTags } = require('./inject');
 
 const ABT_ORIGIN = process.env.ABT_ORIGIN || 'http://abt:3005';
+const ACTUALMINT_API_ORIGIN = process.env.ACTUALMINT_API_ORIGIN || 'http://actualmint-api:3011';
 const PORT = Number(process.env.PORT || 3010);
 const ACTUALMINT_BUNDLE_PATH = process.env.ACTUALMINT_BUNDLE_PATH || '/actualmint';
 // Filesystem directory served under ACTUALMINT_BUNDLE_PATH. Volume-mounted at deploy time.
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || './static');
+const API_PATH_PREFIX = '/api/';
 
 const INJECTED_TAGS =
   `<script src="${ACTUALMINT_BUNDLE_PATH}/bundle.js"></script>` +
@@ -29,8 +31,10 @@ function decodeBody(buffer, encoding, callback) {
   decoder(buffer, callback);
 }
 
-function proxyToAbt(req, res) {
-  const target = new URL(`${ABT_ORIGIN.replace(/\/$/, '')}${req.originalUrl}`);
+// Proxies req to `origin`. When `rewriteHtml` is true, HTML responses get the bundle tags injected;
+// otherwise every response streams through unmodified.
+function proxyTo(origin, rewriteHtml, req, res) {
+  const target = new URL(`${origin.replace(/\/$/, '')}${req.originalUrl}`);
   const transport = target.protocol === 'https:' ? https : http;
 
   // Only the host header is replaced; the upstream expects its own Host.
@@ -40,7 +44,7 @@ function proxyToAbt(req, res) {
   const upstreamReq = transport.request(target, { method: req.method, headers }, (upstreamRes) => {
     const contentType = upstreamRes.headers['content-type'] || '';
 
-    if (!contentType.includes('text/html')) {
+    if (!rewriteHtml || !contentType.includes('text/html')) {
       res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
       upstreamRes.pipe(res);
       return;
@@ -70,26 +74,34 @@ function proxyToAbt(req, res) {
   upstreamReq.on('error', (err) => {
     if (res.headersSent) return res.destroy();
     res.statusCode = 502;
-    res.end(`actualmint-proxy: upstream ${ABT_ORIGIN} unreachable (${err.code || err.message})`);
+    res.end(`actualmint-proxy: upstream ${origin} unreachable (${err.code || err.message})`);
   });
 
   req.pipe(upstreamReq);
 }
 
-function createApp() {
+function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN } = {}) {
   const app = express();
 
   app.use(ACTUALMINT_BUNDLE_PATH, express.static(STATIC_DIR));
   // Anything under the bundle prefix that static did not serve is a 404, not a proxied abt request.
   app.use(ACTUALMINT_BUNDLE_PATH, (req, res) => res.status(404).end());
-  app.use((req, res) => proxyToAbt(req, res));
+  // /api/* goes to actualmint-api as a plain passthrough (JSON, no HTML rewriting).
+  app.use((req, res, next) => {
+    if (req.originalUrl.startsWith(API_PATH_PREFIX)) return proxyTo(apiOrigin, false, req, res);
+    return next();
+  });
+  // Everything else is abt, with HTML responses rewritten to include the bundle.
+  app.use((req, res) => proxyTo(abtOrigin, true, req, res));
 
   return app;
 }
 
 if (require.main === module) {
   createApp().listen(PORT, () => {
-    console.log(`actualmint-proxy listening on :${PORT} -> ${ABT_ORIGIN}, static ${STATIC_DIR} at ${ACTUALMINT_BUNDLE_PATH}`);
+    console.log(
+      `actualmint-proxy listening on :${PORT} -> abt ${ABT_ORIGIN}, api ${ACTUALMINT_API_ORIGIN} (/api/*), static ${STATIC_DIR} at ${ACTUALMINT_BUNDLE_PATH}`
+    );
   });
 }
 
