@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { getActualClient } = require('../actual-client');
+const { getActualClient, syncIfDue } = require('../actual-client');
 
 const router = express.Router();
 
@@ -10,6 +10,11 @@ const router = express.Router();
 router.get('/', async (req, res, next) => {
   try {
     const client = await getActualClient();
+    // Keep the list from going stale for up to an hour (the recycle
+    // interval): refresh from the Actual server before reading, throttled
+    // so this doesn't sync on every single request. A category someone
+    // just created in Actual should show up without waiting that long.
+    await syncIfDue(client);
     const categoryGroups = await client.getCategoryGroups();
 
     const categories = [];

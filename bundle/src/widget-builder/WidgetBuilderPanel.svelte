@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { isReportsPath, watchRoute } from './route-watcher';
   import { buildPlaceholder } from './placeholder';
   import { copyText } from './clipboard';
@@ -13,8 +13,10 @@
   let values = $state({});
   let pickerData = $state({});
   let pickerErrors = $state({});
+  let filterText = $state({});
   let generatedText = $state('');
   let copyStatus = $state('');
+  let generatedTextarea = $state(null);
 
   let selectedWidget = $derived(
     WIDGET_REGISTRY.find((widget) => widget.id === selectedWidgetId) ?? null,
@@ -33,6 +35,10 @@
     return unwatch;
   });
 
+  function isPickerField(field) {
+    return field.type === 'category-multiselect' || field.type === 'account-multiselect';
+  }
+
   async function loadPickerData(field) {
     pickerErrors = { ...pickerErrors, [field.key]: null };
     pickerData = { ...pickerData, [field.key]: null };
@@ -49,15 +55,42 @@
         return;
       }
       const data = await response.json();
-      pickerData = { ...pickerData, [field.key]: data[responseKey] };
+      const list = data[responseKey];
+      if (!Array.isArray(list)) {
+        // Malformed response body (200 but no usable array) - treat it the
+        // same as a non-ok response so the UI shows an error instead of
+        // sitting on "Loading…" forever.
+        pickerErrors = {
+          ...pickerErrors,
+          [field.key]: describePickerError({ ok: false, status: response.status }),
+        };
+        return;
+      }
+      pickerData = { ...pickerData, [field.key]: list };
     } catch {
       pickerErrors = { ...pickerErrors, [field.key]: describePickerError(null) };
+    }
+  }
+
+  // Refetches a field's picker data if it previously failed, or hasn't
+  // loaded yet. Skips fields that already have data so reopening the panel
+  // doesn't needlessly re-fetch everything.
+  function refreshPickerDataIfNeeded() {
+    if (!selectedWidget) return;
+    for (const field of selectedWidget.fields) {
+      if (!isPickerField(field)) continue;
+      const hasData = Array.isArray(pickerData[field.key]);
+      const hasError = Boolean(pickerErrors[field.key]);
+      if (!hasData || hasError) {
+        loadPickerData(field);
+      }
     }
   }
 
   function selectWidget(widgetId) {
     selectedWidgetId = widgetId;
     values = {};
+    filterText = {};
     generatedText = '';
     copyStatus = '';
 
@@ -65,7 +98,7 @@
     if (!widget) return;
 
     for (const field of widget.fields) {
-      if (field.type === 'category-multiselect' || field.type === 'account-multiselect') {
+      if (isPickerField(field)) {
         values[field.key] = [];
         loadPickerData(field);
       }
@@ -74,6 +107,9 @@
 
   function toggleOpen() {
     open = !open;
+    if (open) {
+      refreshPickerDataIfNeeded();
+    }
   }
 
   function toggleOption(fieldKey, optionId) {
@@ -83,10 +119,38 @@
       : [...current, optionId];
   }
 
-  function handleGenerate() {
-    if (!selectedWidget) return;
+  function filteredOptions(field) {
+    const options = pickerData[field.key] ?? [];
+    const query = (filterText[field.key] ?? '').trim().toLowerCase();
+    if (!query) return options;
+    return options.filter((option) => {
+      const name = (option.name ?? '').toLowerCase();
+      const groupName = (option.groupName ?? '').toLowerCase();
+      return name.includes(query) || groupName.includes(query);
+    });
+  }
+
+  // A widget with fields can't be generated with nothing selected for any
+  // of them - that's the empty-placeholder pain point this feature exists
+  // to prevent. A widget with no fields has nothing to select, so it's
+  // always generatable.
+  let canGenerate = $derived(
+    selectedWidget
+      ? selectedWidget.fields.length === 0
+        || selectedWidget.fields.every((field) => (values[field.key] ?? []).length > 0)
+      : false,
+  );
+
+  async function handleGenerate() {
+    if (!selectedWidget || !canGenerate) return;
     generatedText = buildPlaceholder(selectedWidget.id, selectedWidget.fields, values);
     copyStatus = '';
+    // Select the textarea's contents immediately so Ctrl/Cmd+C works as a
+    // fallback alongside the Copy button, without requiring a manual click.
+    // Wait a tick so the textarea's value has actually been updated to the
+    // newly generated text before selecting it.
+    await tick();
+    generatedTextarea?.select();
   }
 
   async function handleCopy() {
@@ -124,8 +188,15 @@
               {:else if pickerData[field.key] === null || pickerData[field.key] === undefined}
                 <p class="actualmint-wb-loading">Loading…</p>
               {:else}
+                <input
+                  type="text"
+                  class="actualmint-wb-filter"
+                  placeholder="Filter…"
+                  value={filterText[field.key] ?? ''}
+                  oninput={(e) => { filterText = { ...filterText, [field.key]: e.target.value }; }}
+                />
                 <ul class="actualmint-wb-options">
-                  {#each pickerData[field.key] as option (option.id)}
+                  {#each filteredOptions(field) as option (option.id)}
                     <li>
                       <label>
                         <input
@@ -143,15 +214,28 @@
           {/each}
         {/if}
 
-        <button type="button" class="actualmint-wb-generate" onclick={handleGenerate}>
+        <button
+          type="button"
+          class="actualmint-wb-generate"
+          onclick={handleGenerate}
+          disabled={!canGenerate}
+        >
           Generate
         </button>
 
         <div class="actualmint-wb-output">
+          <!--
+            The generated placeholder must stay inside a form control's
+            `.value` (never rendered as plain text content): mount.js scans
+            the whole document.body for placeholder-shaped text nodes, so
+            showing this string as visible text would make the panel's own
+            output get mistakenly picked up and mounted as a live widget.
+          -->
           <textarea
             class="actualmint-wb-textarea"
             readonly
             value={generatedText}
+            bind:this={generatedTextarea}
             onclick={(e) => e.target.select()}
           ></textarea>
           <button type="button" class="actualmint-wb-copy" onclick={handleCopy} disabled={!generatedText}>
@@ -210,6 +294,11 @@
 
   .actualmint-wb-field-label {
     font-weight: 600;
+  }
+
+  .actualmint-wb-filter {
+    box-sizing: border-box;
+    width: 100%;
   }
 
   .actualmint-wb-options {

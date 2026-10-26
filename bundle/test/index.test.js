@@ -24,6 +24,12 @@ test('mountWidget still runs when accessing sessionStorage throws', async () => 
 });
 
 test('mountPanel is called to mount the widget-builder panel', async () => {
+  // Without this, '../src/index.js' would resolve from the module cache
+  // populated by the previous test's import, so this test's own import
+  // wouldn't actually re-run index.js - the assertion would only pass
+  // because the earlier test had already called mountPanel.
+  vi.resetModules();
+
   const { mountPanel } = await import('../src/widget-builder/mount-panel');
 
   await import('../src/index.js');
