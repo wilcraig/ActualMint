@@ -221,6 +221,129 @@ test("a transfer schedule with a positive amount (e.g. cc-helper's checking->car
   });
 });
 
+test('a perfectly regular monthly schedule that started only 2 months ago never alerts (short-history regression)', async () => {
+  // Started 2026-09-15 - only ~2 months before "today" (2026-10-26). The
+  // original bug divided occurrencesInYear by a fixed 12 regardless of how
+  // much history existed, producing an artificially low average (0.17 for
+  // October, 0.25 for November) that false-alerted even for this perfectly
+  // regular 1/month cadence.
+  const config = { frequency: 'monthly', start: '2026-09-15', patterns: [{ type: 'day', value: 15 }] };
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        { id: 'sched1', name: 'New Monthly Salary', completed: false, amount: 500000, payee: 'payeeA', date: config },
+      ],
+      payees: [],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/paycheck-alerts`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.alerts).toEqual([]);
+  });
+});
+
+test('a perfectly regular monthly schedule that started 10 months ago never alerts', async () => {
+  // Started 2025-12-15 - about 10 months before "today" (2026-10-26). Still
+  // less than a full 12-month trailing history, so this exercises the same
+  // short-history averaging-window logic with a longer (but still partial)
+  // history.
+  const config = { frequency: 'monthly', start: '2025-12-15', patterns: [{ type: 'day', value: 15 }] };
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        { id: 'sched1', name: 'Monthly Salary', completed: false, amount: 500000, payee: 'payeeA', date: config },
+      ],
+      payees: [],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/paycheck-alerts`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.alerts).toEqual([]);
+  });
+});
+
+test('a biweekly schedule that started only 2 months ago still alerts correctly for a 3-occurrence month', async () => {
+  // Started 2026-09-04 - confirms the short-history fix doesn't break the
+  // legitimate alerting case: a short-but-sufficient history should still
+  // produce a correct (non-1.0) average and alert when a month has more than
+  // the normal number of occurrences.
+  const config = { frequency: 'weekly', interval: 2, start: '2026-09-04' };
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        { id: 'sched1', name: 'New Biweekly Paycheck', completed: false, amount: 200000, payee: 'payeeA', date: config },
+      ],
+      payees: [],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/paycheck-alerts`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    // Biweekly from 2026-09-04: Sep 4/18, Oct 2/16/30 (3 occurrences in
+    // October), Nov 13/27 (2 occurrences in November).
+    const octAlert = body.alerts.find((a) => a.month === '2026-10');
+    expect(octAlert).toBeDefined();
+    expect(octAlert.occurrences).toBe(3);
+    expect(octAlert.averagePerMonth).toBeLessThan(3);
+    expect(octAlert.averagePerMonth).toBeGreaterThan(0);
+
+    const novAlert = body.alerts.find((a) => a.month === '2026-11');
+    expect(novAlert).toBeUndefined();
+  });
+});
+
+test('falls back to the payee name when schedule.name is missing', async () => {
+  const config = { frequency: 'weekly', interval: 2, start: '2020-01-03' };
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      payees: [{ id: 'payeeA', name: 'Acme Employer' }],
+      schedules: [
+        { id: 'sched1', name: null, completed: false, amount: 200000, payee: 'payeeA', date: config },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/paycheck-alerts`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.alerts).toHaveLength(1);
+    expect(body.alerts[0].scheduleName).toBe('Acme Employer');
+  });
+});
+
+test('falls back to a generic label when neither schedule.name nor a resolvable payee is available', async () => {
+  const config = { frequency: 'weekly', interval: 2, start: '2020-01-03' };
+
+  getActualClient.mockResolvedValue(
+    stubClient({
+      payees: [],
+      schedules: [
+        { id: 'sched1', name: null, completed: false, amount: 200000, payee: 'missingPayee', date: config },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/paycheck-alerts`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.alerts).toHaveLength(1);
+    expect(body.alerts[0].scheduleName).toBe('(Unnamed schedule)');
+  });
+});
+
 test('no qualifying schedules returns an empty alerts array, not an error', async () => {
   getActualClient.mockResolvedValue(stubClient({ schedules: [], payees: [] }));
 
