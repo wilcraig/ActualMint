@@ -2,6 +2,10 @@
   import { scaleTime, scaleLinear, line as d3Line, extent as d3Extent, timeFormat } from 'd3';
   import { fetchApi } from '../api-client';
 
+  // An empty array (the default) means "every open account," matching the
+  // API's own default when its `accounts` query param is omitted.
+  let { accountIds = [] } = $props();
+
   let range = $state('1M');
   let data = $state(null);
   let errorMessage = $state(null);
@@ -37,7 +41,9 @@
     data = null;
 
     try {
-      const response = await fetchApi(`/api/account-balances?range=${currentRange}`);
+      const params = new URLSearchParams({ range: currentRange });
+      if (accountIds.length > 0) params.set('accounts', accountIds.join(','));
+      const response = await fetchApi(`/api/account-balances?${params}`);
       if (seq !== loadSeq) return; // a newer range selection has since started
 
       if (!response.ok) {

@@ -5,6 +5,18 @@ const { assertTimezoneConfigured } = require('../month-days');
 
 const RANGE_PATTERN = /^(1M|3M|6M|1Y|all)$/;
 
+// Same comma-separated-ids convention as budget-pacing.js's `categories`
+// query parameter.
+function parseAccountIds(accounts) {
+  if (typeof accounts !== 'string' || accounts.length === 0) {
+    return [];
+  }
+  return accounts
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
 // A floor date safely before any real bank data. Querying from here (rather
 // than from rangeStart) is what lets a single getTransactions call also
 // yield the correct starting balance for the display range: every
@@ -148,12 +160,14 @@ router.get('/', async (req, res, next) => {
   try {
     assertTimezoneConfigured();
 
-    const { range } = req.query;
+    const { range, accounts: accountsParam } = req.query;
 
     if (typeof range !== 'string' || !RANGE_PATTERN.test(range)) {
       res.status(400).json({ error: 'range query parameter must be one of 1M, 3M, 6M, 1Y, all' });
       return;
     }
+
+    const requestedAccountIds = parseAccountIds(accountsParam);
 
     const client = await getActualClient();
     await syncIfDue(client);
@@ -162,7 +176,16 @@ router.get('/', async (req, res, next) => {
     const rangeEndStr = formatDate(rangeEnd);
 
     const allAccounts = await client.getAccounts();
-    const openAccounts = (allAccounts || []).filter((account) => !account.closed);
+    let openAccounts = (allAccounts || []).filter((account) => !account.closed);
+    // An empty/missing `accounts` param means "show every open account"
+    // (today's behavior, unchanged); a non-empty one filters down to just
+    // those ids, in the order requested. A requested id that's closed or
+    // doesn't exist is silently omitted, matching budget-pacing.js's
+    // omit-rather-than-error convention for an unknown category id.
+    if (requestedAccountIds.length > 0) {
+      const openById = new Map(openAccounts.map((account) => [account.id, account]));
+      openAccounts = requestedAccountIds.map((id) => openById.get(id)).filter(Boolean);
+    }
 
     // `range=all` needs every account's transactions up front to find the
     // earliest date, so fetch for all open accounts before resolving

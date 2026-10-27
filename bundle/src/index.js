@@ -49,14 +49,15 @@ mountWidget('{{ACTUALMINT:bills-timeline:', (host) => {
   new BillsTimeline({ target: host });
 });
 
-// AccountBalancesChart takes no config (mount.js still requires the
-// placeholder's body to parse as JSON, so an empty or missing body like
-// `{{ACTUALMINT:account-balances:}}` fails to parse and the widget never
-// mounts). To add this widget, type the following literal text into an
-// Actual Reports "Text widget":
-//   {{ACTUALMINT:account-balances:null}}
-mountWidget('{{ACTUALMINT:account-balances:', (host) => {
-  new AccountBalancesChart({ target: host });
+// AccountBalancesChart's config is an array of account ids to show (empty
+// or omitted means every open account), the same convention as
+// pacing-bars' categoryIds. To show every account, type the following
+// literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:account-balances:[]}}
+// or to show only specific accounts:
+//   {{ACTUALMINT:account-balances:["accountId1","accountId2"]}}
+mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
+  new AccountBalancesChart({ target: host, props: { accountIds } });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

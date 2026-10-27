@@ -124,6 +124,99 @@ test('combines all accounts into a netWorth series', async () => {
   });
 });
 
+test('an accounts filter narrows which accounts appear, and netWorth reflects only those', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [
+        { id: 'acc1', name: 'Checking', closed: false },
+        { id: 'acc2', name: 'Savings', closed: false },
+        { id: 'acc3', name: 'Credit Card', closed: false },
+      ],
+      transactionsByAccount: {
+        acc1: [{ id: 't1', date: '2026-10-26', amount: 10000 }],
+        acc2: [{ id: 't2', date: '2026-10-26', amount: 25000 }],
+        acc3: [{ id: 't3', date: '2026-10-26', amount: -5000 }],
+      },
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1M&accounts=acc1,acc3`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.accounts.map((a) => a.id)).toEqual(['acc1', 'acc3']);
+    const netWorthToday = body.netWorth.find((p) => p.date === '2026-10-26');
+    // 10000 + -5000, not all three (which would be 30000).
+    expect(netWorthToday.balanceCents).toBe(5000);
+  });
+});
+
+test('an accounts filter preserves the requested order, not the account list\'s own order', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [
+        { id: 'acc1', name: 'Checking', closed: false },
+        { id: 'acc2', name: 'Savings', closed: false },
+      ],
+      transactionsByAccount: {
+        acc1: [{ id: 't1', date: '2026-10-26', amount: 10000 }],
+        acc2: [{ id: 't2', date: '2026-10-26', amount: 25000 }],
+      },
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1M&accounts=acc2,acc1`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.accounts.map((a) => a.id)).toEqual(['acc2', 'acc1']);
+  });
+});
+
+test('an accounts filter naming a closed or unknown id silently omits it, not errors', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [
+        { id: 'acc1', name: 'Checking', closed: false },
+        { id: 'acc2', name: 'Old Savings', closed: true },
+      ],
+      transactionsByAccount: {
+        acc1: [{ id: 't1', date: '2026-10-26', amount: 10000 }],
+      },
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1M&accounts=acc1,acc2,does-not-exist`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.accounts.map((a) => a.id)).toEqual(['acc1']);
+  });
+});
+
+test('no accounts filter still means every open account, unchanged from before', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [
+        { id: 'acc1', name: 'Checking', closed: false },
+        { id: 'acc2', name: 'Savings', closed: false },
+      ],
+      transactionsByAccount: {
+        acc1: [{ id: 't1', date: '2026-10-26', amount: 10000 }],
+        acc2: [{ id: 't2', date: '2026-10-26', amount: 25000 }],
+      },
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1M`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.accounts.map((a) => a.id).sort()).toEqual(['acc1', 'acc2']);
+  });
+});
+
 test('excludes a closed account from both its own series and netWorth', async () => {
   getActualClient.mockResolvedValue(
     stubClient({

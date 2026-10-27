@@ -8,6 +8,8 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     { id: 'month-end-net', label: 'Projected month-end net', fields: [] },
     { id: 'paycheck-alerts', label: 'Paycheck alerts (3-paycheck months)', fields: [] },
     { id: 'bills-timeline', label: 'Bills / autopay timeline', fields: [] },
-    { id: 'account-balances', label: 'Account balances chart', fields: [] },
+    { id: 'account-balances', label: 'Account balances chart', fields: [
+      { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
+    ] },
   ]);
 });

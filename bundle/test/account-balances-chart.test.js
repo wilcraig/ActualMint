@@ -42,10 +42,10 @@ function multiDayPayload() {
   };
 }
 
-function mountChart() {
+function mountChart(props = {}) {
   document.body.innerHTML = '<div id="host"></div>';
   const target = document.getElementById('host');
-  new AccountBalancesChart({ target });
+  new AccountBalancesChart({ target, props });
   return target;
 }
 
@@ -62,6 +62,28 @@ test('fetches the default 1M range on mount', async () => {
 
   expect(fetchApi).toHaveBeenCalledTimes(1);
   expect(fetchApi.mock.calls[0][0]).toContain('range=1M');
+});
+
+test('with no accountIds prop, fetches without an accounts filter (every open account)', async () => {
+  fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
+
+  mountChart();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(fetchApi.mock.calls[0][0]).not.toContain('accounts=');
+});
+
+test('with an accountIds prop, fetches with a comma-joined accounts filter', async () => {
+  fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
+
+  mountChart({ accountIds: ['acc1', 'acc2'] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const url = fetchApi.mock.calls[0][0];
+  expect(url).toContain('range=1M');
+  expect(decodeURIComponent(url)).toContain('accounts=acc1,acc2');
 });
 
 test('renders one line per account plus a visually distinct net-worth line', async () => {

@@ -26,6 +26,8 @@ export const WIDGET_REGISTRY = [
   {
     id: 'account-balances',
     label: 'Account balances chart',
-    fields: [],
+    fields: [
+      { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
+    ],
   },
 ];
