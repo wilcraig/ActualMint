@@ -47,9 +47,18 @@
 <style>
   .actualmint-text-scale-button {
     position: fixed;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 999;
+    /* Bottom-LEFT collides head-on with Actual's own sidebar footer (Undo/
+       Redo/Sync live there too, confirmed by live inspection -- its
+       container sits at z-index: 1001, and the buttons themselves occupy
+       the same few square inches). Bottom-right, stacked above where the
+       widget-builder panel's own floating button sits (bottom: 1rem;
+       z-index: 9999), is clear on every page -- the widget-builder button
+       only appears on /reports* anyway, so the two are never both present
+       at their respective positions without this offset, but stacking
+       clear of it still avoids a collision if that ever changes. */
+    bottom: 4.5rem;
+    right: 1rem;
+    z-index: 9999;
     display: flex;
     align-items: center;
     gap: 0.4rem;
