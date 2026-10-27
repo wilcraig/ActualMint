@@ -260,6 +260,30 @@
     font-size: 0.9rem;
   }
 
+  /* Actual's own mobile bottom tab bar (Budget/Transaction/Accounts) is a
+     fixed, full-width, 70px-tall bar flush with the viewport bottom
+     (confirmed by live inspection). Below this width it always shows that
+     bar, so raise this button to clear it; stays right-anchored (the
+     text-scale control moves to the opposite, left side on mobile instead,
+     so the two can never collide). */
+  @media (max-width: 767px) {
+    .actualmint-widget-builder {
+      bottom: 76px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* The panel normally opens downward below the toggle (margin-top).
+       With the toggle now sitting just above Actual's own nav bar, opening
+       downward would run the panel's content under that nav bar. Flip it
+       to open upward instead (order: -1 needs the flex container above). */
+    .actualmint-wb-panel {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      order: -1;
+    }
+  }
+
   .actualmint-wb-toggle {
     cursor: pointer;
     padding: 0.5rem 1rem;

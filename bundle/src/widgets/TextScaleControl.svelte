@@ -73,6 +73,22 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
+  /* Actual's own mobile bottom tab bar (Budget/Transaction/Accounts) is a
+     fixed, full-width, 70px-tall bar flush with the viewport bottom
+     (confirmed by live inspection). Below this width it always shows that
+     bar, so move off its right-side stacking position (which overlapped
+     "Accounts") and up to just clear it; anchor from the LEFT instead of
+     the right so this button can never collide with the widget-builder
+     button, which stays right-anchored -- no width coordination needed
+     between the two independently-mounted components. */
+  @media (max-width: 767px) {
+    .actualmint-text-scale-button {
+      bottom: 76px;
+      left: 0.5rem;
+      right: auto;
+    }
+  }
+
   .actualmint-text-scale-icon {
     font-weight: 700;
   }
