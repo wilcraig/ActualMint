@@ -12,9 +12,9 @@ jest.mock('@actual-app/api', () => ({
 }));
 jest.useFakeTimers();
 
-// Despite the env var's name, this deployment's ACTUAL_SYNC_ID is the sync
-// *group* id (confirmed against production: it matches getBudgets()'s
-// groupId field, not cloudFileId -- see the comment in actual-client.js).
+// Despite the env var's name, ACTUAL_SYNC_ID is the sync *group* id (it
+// matches getBudgets()'s groupId field, not cloudFileId -- see the comment
+// in actual-client.js).
 const ACTUAL_SYNC_ID = 'group-id-123';
 const ORIGINAL_SYNC_ID = process.env.ACTUAL_SYNC_ID;
 

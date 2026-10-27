@@ -1,14 +1,13 @@
 {
   "name": "actualmint-api",
   "version": "0.1.0",
-  "private": true,
   "description": "Long-running read-only API over a single Actual Budget client connection.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "test": "jest"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "@actual-app/api": "26.10.0",
     "@rschedule/core": "1.5.0",

@@ -21,19 +21,18 @@ let syncInFlight = null; // the in-flight sync() promise, shared by concurrent c
 
 // downloadBudget() always performs a full-history CRDT resync from message
 // zero, regardless of what's already cached on disk -- fine for a small
-// budget, but this household's message log has grown past ~250k messages
-// (years of imported history plus the categorization/duplicate-merge
-// recovery work), where a full resync reliably takes 40-90+ seconds and has
-// been observed to fail outright (EPIPE/network-failure). Every recycle
-// (hourly, see RECYCLE_MS) called downloadBudget() again, so once an hour
-// every widget on the page would hang -- sharing the one clientPromise
-// below -- for however long that resync took, or error out entirely.
+// budget, but a budget with years of imported history can have a message
+// log well past 100k+ messages, where a full resync reliably takes
+// 40-90+ seconds and has been observed to fail outright
+// (EPIPE/network-failure). Every recycle (hourly, see RECYCLE_MS) called
+// downloadBudget() again, so once an hour every widget on the page would
+// hang -- sharing the one clientPromise below -- for however long that
+// resync took, or error out entirely.
 //
 // loadBudget() + sync(), by contrast, opens the budget from whatever's
 // already on disk (same dataDir, which survives a recycle since that only
 // tears down the in-process @actual-app/api connection, not the container's
-// filesystem) and catches up incrementally -- the same fast, reliable path
-// proven out manually against this exact budget during the recovery work.
+// filesystem) and catches up incrementally -- the same fast, reliable path.
 // So: only the very first connection this container ever makes (no local
 // cache yet) pays the slow/fragile downloadBudget() cost; every recycle
 // after that reuses the local cache instead.
@@ -44,10 +43,9 @@ async function findCachedLocalBudgetId(syncId) {
     // `id` -- the local folder name loadBudget() takes) and budgets that
     // only exist on the server so far (no `id`, `state: "remote"`); only
     // the former is usable here. Despite its field name, `ACTUAL_SYNC_ID`
-    // in this deployment's .env is the sync *group* id, matching each
-    // entry's `groupId` -- confirmed by direct inspection: the local
-    // entry's groupId equals the exact value downloadBudget() has always
-    // been called with throughout this project, not its cloudFileId.
+    // is the sync *group* id, matching each entry's `groupId` -- confirmed
+    // by direct inspection: the local entry's groupId equals the exact
+    // value downloadBudget() is always called with, not its cloudFileId.
     const match = (localBudgets || []).find((b) => b.id && b.groupId === syncId);
     return match ? match.id : null;
   } catch (err) {

@@ -1,13 +1,12 @@
 {
   "name": "actualmint-bundle",
   "version": "0.1.0",
-  "private": true,
   "description": "Browser-side bundle injected into Actual Budget's web pages; mounts ActualMint widgets into Reports Text widget placeholders.",
   "type": "module",
   "scripts": {
     "test": "vitest run"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "d3": "^7.9.0"
   },
