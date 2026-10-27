@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { getActualClient, syncIfDue } = require('../actual-client');
+const { assertTimezoneConfigured } = require('../month-days');
 
 const RANGE_PATTERN = /^(1M|3M|6M|1Y|all)$/;
 
@@ -31,15 +32,34 @@ function addDays(date, days) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
-// today minus N months, landing on the same day-of-month (JS Date's own
-// month-overflow rollback behavior, e.g. "2026-01-31 minus 1 month" clamping
-// is intentionally delegated to the platform rather than re-implemented).
+// The last valid day-of-month for `year`/`month` (0-indexed month, matching
+// Date's own convention) — day 0 of the *next* month is the last day of
+// `month`.
+function lastDayOfMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+// today minus N months, landing on the same day-of-month when that day
+// exists in the target month, otherwise clamped to the target month's last
+// day. JS Date's own month-overflow behavior rolls FORWARD instead of
+// clamping (e.g. new Date(2026, 1, 31) for "Feb 31" overflows to March 3
+// rather than landing on Feb 28), so the clamp has to be computed explicitly
+// here rather than left to the platform.
 function monthsBefore(date, months) {
-  return new Date(date.getFullYear(), date.getMonth() - months, date.getDate());
+  const targetYear = date.getFullYear();
+  const targetMonth = date.getMonth() - months;
+  // Normalize targetMonth into a real year/month pair before computing its
+  // last day — new Date(year, month, 0) already handles negative/overflowing
+  // month values correctly, so lastDayOfMonth works even with a raw targetMonth.
+  const day = Math.min(date.getDate(), lastDayOfMonth(targetYear, targetMonth));
+  return new Date(targetYear, targetMonth, day);
 }
 
 function yearsBefore(date, years) {
-  return new Date(date.getFullYear() - years, date.getMonth(), date.getDate());
+  const targetYear = date.getFullYear() - years;
+  const targetMonth = date.getMonth();
+  const day = Math.min(date.getDate(), lastDayOfMonth(targetYear, targetMonth));
+  return new Date(targetYear, targetMonth, day);
 }
 
 // Every calendar day from `start` to `end`, inclusive, as YYYY-MM-DD strings.
@@ -126,6 +146,8 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
+    assertTimezoneConfigured();
+
     const { range } = req.query;
 
     if (typeof range !== 'string' || !RANGE_PATTERN.test(range)) {

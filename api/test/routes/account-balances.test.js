@@ -238,6 +238,46 @@ test('daily series has exactly one entry per calendar day from rangeStart to ran
   });
 });
 
+test('range=1M starting on March 31 clamps to February 28, not overflowing to March 3', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [{ id: 'acc1', name: 'Checking', closed: false }],
+      transactionsByAccount: { acc1: [] },
+    })
+  );
+
+  jest.setSystemTime(new Date(2026, 2, 31, 10)); // 2026-03-31, 10:00 local
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1M`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.rangeStart).toBe('2026-02-28');
+    expect(body.rangeEnd).toBe('2026-03-31');
+  });
+});
+
+test('range=1Y starting on a leap-year February 29 clamps to the prior February 28, not overflowing to March 1', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      accounts: [{ id: 'acc1', name: 'Checking', closed: false }],
+      transactionsByAccount: { acc1: [] },
+    })
+  );
+
+  jest.setSystemTime(new Date(2028, 1, 29, 10)); // 2028-02-29 (leap year), 10:00 local
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/account-balances?range=1Y`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.rangeStart).toBe('2027-02-28');
+    expect(body.rangeEnd).toBe('2028-02-29');
+  });
+});
+
 test('an invalid range value 400s', async () => {
   getActualClient.mockResolvedValue(stubClient({ accounts: [] }));
 
