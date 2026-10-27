@@ -8,6 +8,7 @@ const paycheckAlertsRouter = require('./routes/paycheck-alerts');
 const spendingBreakdownRouter = require('./routes/spending-breakdown');
 const categoriesRouter = require('./routes/categories');
 const accountsRouter = require('./routes/accounts');
+const accountBalancesRouter = require('./routes/account-balances');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/paycheck-alerts', paycheckAlertsRouter);
 app.use('/api/spending-breakdown', spendingBreakdownRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/accounts', accountsRouter);
+app.use('/api/account-balances', accountBalancesRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
