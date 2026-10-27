@@ -13,7 +13,7 @@ test('mounts a visible button and applies the default (13px) scale on first load
 
   const button = document.querySelector('.actualmint-text-scale-button');
   expect(button).not.toBeNull();
-  expect(document.getElementById('actualmint-text-scale').textContent).toContain('font-size: 13px');
+  expect(document.getElementById('actualmint-text-scale').textContent).toContain('zoom: 1');
   expect(button.textContent).toContain('Normal');
 });
 
@@ -22,7 +22,7 @@ test('loads a previously saved scale instead of the default', async () => {
   new TextScaleControl({ target: document.getElementById('host') });
   await Promise.resolve();
 
-  expect(document.getElementById('actualmint-text-scale').textContent).toContain('font-size: 19px');
+  expect(document.getElementById('actualmint-text-scale').textContent).toContain(`zoom: ${19 / 13}`);
   expect(document.querySelector('.actualmint-text-scale-button').textContent).toContain('Larger');
 });
 
@@ -34,7 +34,7 @@ test('clicking the button cycles to the next preset and persists it', async () =
   button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   await Promise.resolve();
 
-  expect(document.getElementById('actualmint-text-scale').textContent).toContain('font-size: 16px');
+  expect(document.getElementById('actualmint-text-scale').textContent).toContain(`zoom: ${16 / 13}`);
   expect(button.textContent).toContain('Large');
   expect(window.localStorage.getItem(STORAGE_KEY)).toBe('16');
 });

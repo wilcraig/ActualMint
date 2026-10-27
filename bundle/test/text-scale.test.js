@@ -47,23 +47,23 @@ test('saveScale does not throw when storage access throws', () => {
   expect(() => saveScale(throwingStorage, 16)).not.toThrow();
 });
 
-test('applyScale creates a style element setting html font-size', () => {
+test('applyScale creates a style element setting html zoom relative to the 13px default', () => {
   document.head.innerHTML = '';
   applyScale(document, 19);
   const styleEl = document.getElementById('actualmint-text-scale');
   expect(styleEl).not.toBeNull();
-  expect(styleEl.textContent).toContain('font-size: 19px');
-  expect(styleEl.textContent).toContain('!important');
+  expect(styleEl.textContent).toContain(`zoom: ${19 / 13}`);
 });
 
-test('applyScale also overrides body font-size, not just html', () => {
-  // Actual's own base stylesheet sets `html, body { font-size: 13px; }` as
-  // one compound rule -- body does not inherit/recompute from html, so an
-  // html-only override leaves all of Actual's native UI text unaffected.
+test('applyScale at the default (13px) produces zoom: 1 -- no visible change', () => {
+  // A plain font-size override only grows row/cell layout for elements that
+  // hardcode their own font-size (confirmed live on the budget table and
+  // transaction register) -- it never touches the text itself. zoom scales
+  // the whole rendering context instead, which affects those elements too.
   document.head.innerHTML = '';
-  applyScale(document, 19);
+  applyScale(document, 13);
   const styleEl = document.getElementById('actualmint-text-scale');
-  expect(styleEl.textContent).toMatch(/\bbody\b/);
+  expect(styleEl.textContent).toContain('zoom: 1');
 });
 
 test('applyScale updates the existing style element in place rather than creating a second one', () => {
@@ -72,7 +72,7 @@ test('applyScale updates the existing style element in place rather than creatin
   applyScale(document, 23);
   const styleEls = document.querySelectorAll('#actualmint-text-scale');
   expect(styleEls.length).toBe(1);
-  expect(styleEls[0].textContent).toContain('font-size: 23px');
+  expect(styleEls[0].textContent).toContain(`zoom: ${23 / 13}`);
 });
 
 test('nextPreset cycles normal -> large -> larger -> largest -> normal', () => {

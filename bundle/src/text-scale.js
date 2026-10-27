@@ -1,10 +1,19 @@
 // Global text-size control — lets each browser/device independently bump up
-// the font size of the *entire* page (Actual's own native budget/report UI,
-// not just ActualMint's own widgets), since a phone-sized default is too
-// small to read. Works because Actual's own CSS sizes everything in `rem`
-// off a single `html { font-size: 13px }` base rule (confirmed by live
-// inspection) — overriding that one root value cleanly rescales the whole
-// app, native UI included, with no per-widget CSS changes needed.
+// the size of the *entire* page (Actual's own native budget/report UI, not
+// just ActualMint's own widgets), since a phone-sized default is too small
+// to read.
+//
+// Overriding `html`/`body` font-size does NOT work here, even though
+// Actual's base stylesheet looks rem/em-driven: many of Actual's own UI
+// elements (e.g. the payee/category text inside budget and transaction
+// table rows) carry their own literal, hardcoded `font-size: 13px` via
+// per-element CSS-in-JS rules that completely bypass inheritance -- a
+// font-size override on html/body only grew the surrounding row/cell
+// layout (more empty space around icons), confirmed live, while the text
+// itself stayed pinned at 13px. CSS `zoom` instead scales the whole
+// rendering context the same way native browser zoom does, which affects
+// every element regardless of how its own font-size was declared --
+// confirmed live to actually enlarge that same hardcoded-13px text.
 //
 // Persisted per-browser in localStorage (not synced through Actual's own
 // data), so a phone and a desktop can each keep their own preferred size.
@@ -49,21 +58,12 @@ export function saveScale(storage, px) {
   }
 }
 
-// Applies `px` as the document's root font-size via a single dedicated
-// <style> element (created once, updated in place on later calls) rather
-// than writing to html.style directly, so this plays nicely alongside any
-// other inline styles already on <html> and is trivial to find/remove.
-// `!important` guards against Actual's own base rule winning on load
-// order/specificity.
-//
-// Actual's own base stylesheet sets `html, body { font-size: 13px; }` --
-// one compound rule giving BOTH elements their own independent 13px value,
-// not `body` inheriting/recomputing from `html`. Nearly all of Actual's
-// native UI text (budget table, transaction register, etc.) inherits from
-// `body`, not from `html` via `rem`. Overriding only `html` therefore left
-// all of that native text stuck at 13px -- only ActualMint's own
-// rem-sized widgets picked up the change. Both elements must be
-// overridden together, mirroring Actual's own rule shape.
+// Applies `px` as a zoom level on `html` (relative to Actual's own default
+// of 13px, so "Normal" is exactly zoom: 1 -- a user who never touches this
+// control sees no change at all) via a single dedicated <style> element
+// (created once, updated in place on later calls) rather than writing to
+// html.style directly, so this plays nicely alongside any other inline
+// styles already on <html> and is trivial to find/remove.
 export function applyScale(doc, px) {
   let styleEl = doc.getElementById(STYLE_ELEMENT_ID);
   if (!styleEl) {
@@ -71,7 +71,8 @@ export function applyScale(doc, px) {
     styleEl.id = STYLE_ELEMENT_ID;
     doc.head.appendChild(styleEl);
   }
-  styleEl.textContent = `html, body { font-size: ${px}px !important; }`;
+  const zoom = px / DEFAULT_PX;
+  styleEl.textContent = `html { zoom: ${zoom}; }`;
 }
 
 // The next preset after whichever one's px is closest to `currentPx`,
