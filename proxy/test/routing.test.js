@@ -1,4 +1,7 @@
+const fs = require('fs');
 const http = require('http');
+const os = require('os');
+const path = require('path');
 const { createApp } = require('../src/server');
 
 // Starts a stub origin that records every request path AND headers it
@@ -133,6 +136,100 @@ describe('request routing', () => {
     } finally {
       concurrentProxy.close();
       delayedAbt.server.close();
+    }
+  });
+});
+
+describe('cache-busted bundle tags', () => {
+  let abt;
+  let api;
+  let staticDir;
+
+  beforeEach(async () => {
+    abt = await startStub('abt');
+    api = await startStub('api');
+    staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'actualmint-proxy-static-'));
+  });
+
+  afterEach(() => {
+    abt.server.close();
+    api.server.close();
+    fs.rmSync(staticDir, { recursive: true, force: true });
+  });
+
+  function htmlStub(label) {
+    // Overrides the shared JSON stub above with one that returns real HTML,
+    // since only an HTML response goes through the inject-tags rewrite path.
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<html><body><p>hi</p></body></html>');
+    });
+    return new Promise((resolve) =>
+      server.listen(0, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${server.address().port}` }))
+    );
+  }
+
+  test('the injected script/link tags carry a cache-busting query derived from the file\'s mtime', async () => {
+    fs.writeFileSync(path.join(staticDir, 'bundle.js'), 'console.log(1)');
+    fs.writeFileSync(path.join(staticDir, 'bundle.css'), 'body{}');
+    const htmlOrigin = await htmlStub('abt-html');
+    const app = createApp({ abtOrigin: htmlOrigin.url, apiOrigin: api.url, staticDir });
+    const proxy = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => proxy.once('listening', resolve));
+
+    try {
+      const res = await get(proxy.address().port, '/reports');
+      const jsMtime = Math.floor(fs.statSync(path.join(staticDir, 'bundle.js')).mtimeMs);
+      const cssMtime = Math.floor(fs.statSync(path.join(staticDir, 'bundle.css')).mtimeMs);
+      expect(res.body).toContain(`<script src="/actualmint/bundle.js?v=${jsMtime}"></script>`);
+      expect(res.body).toContain(`<link rel="stylesheet" href="/actualmint/bundle.css?v=${cssMtime}">`);
+    } finally {
+      proxy.close();
+      htmlOrigin.server.close();
+    }
+  });
+
+  test('the cache-busting query changes after bundle.js is rebuilt (newer mtime)', async () => {
+    const jsPath = path.join(staticDir, 'bundle.js');
+    fs.writeFileSync(jsPath, 'console.log(1)');
+    fs.utimesSync(jsPath, new Date(2020, 0, 1), new Date(2020, 0, 1));
+    const htmlOrigin = await htmlStub('abt-html');
+    const app = createApp({ abtOrigin: htmlOrigin.url, apiOrigin: api.url, staticDir });
+    const proxy = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => proxy.once('listening', resolve));
+
+    try {
+      const first = await get(proxy.address().port, '/reports');
+      const firstMatch = first.body.match(/bundle\.js\?v=(\d+)/);
+      expect(firstMatch).not.toBeNull();
+
+      // Simulate a rebuild: same file, newer mtime.
+      fs.utimesSync(jsPath, new Date(2030, 0, 1), new Date(2030, 0, 1));
+
+      const second = await get(proxy.address().port, '/reports');
+      const secondMatch = second.body.match(/bundle\.js\?v=(\d+)/);
+      expect(secondMatch).not.toBeNull();
+      expect(secondMatch[1]).not.toBe(firstMatch[1]);
+    } finally {
+      proxy.close();
+      htmlOrigin.server.close();
+    }
+  });
+
+  test('falls back to no cache-busting query when the static file does not exist yet', async () => {
+    // staticDir is empty -- no bundle.js/bundle.css written.
+    const htmlOrigin = await htmlStub('abt-html');
+    const app = createApp({ abtOrigin: htmlOrigin.url, apiOrigin: api.url, staticDir });
+    const proxy = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => proxy.once('listening', resolve));
+
+    try {
+      const res = await get(proxy.address().port, '/reports');
+      expect(res.body).toContain('<script src="/actualmint/bundle.js"></script>');
+      expect(res.body).toContain('<link rel="stylesheet" href="/actualmint/bundle.css">');
+    } finally {
+      proxy.close();
+      htmlOrigin.server.close();
     }
   });
 });

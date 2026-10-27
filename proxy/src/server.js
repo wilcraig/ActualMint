@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const path = require('path');
@@ -13,9 +14,33 @@ const ACTUALMINT_BUNDLE_PATH = process.env.ACTUALMINT_BUNDLE_PATH || '/actualmin
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || './static');
 const API_PATH_PREFIX = '/api/';
 
-const INJECTED_TAGS =
-  `<script src="${ACTUALMINT_BUNDLE_PATH}/bundle.js"></script>` +
-  `<link rel="stylesheet" href="${ACTUALMINT_BUNDLE_PATH}/bundle.css">`;
+// A query string that changes whenever `filePath`'s content last changed,
+// so the browser (and any service worker caching by URL, which Actual's own
+// PWA shell does) treats a new build as a genuinely new resource instead of
+// serving an indefinitely stale `bundle.js`/`bundle.css` from cache -- this
+// proxy's own HTML rewrite runs fresh on every request, so this is the only
+// stale-cache path left once that's covered. Falls back to no cache-buster
+// (today's behavior) if the file doesn't exist yet, e.g. before the first
+// build.
+function cacheBustQuery(filePath) {
+  try {
+    return `?v=${Math.floor(fs.statSync(filePath).mtimeMs)}`;
+  } catch {
+    return '';
+  }
+}
+
+// Computed fresh per request (not once at startup) so a new build picked up
+// by the static volume mount -- without this process itself restarting --
+// is reflected immediately.
+function buildInjectedTags(staticDir) {
+  const jsVersion = cacheBustQuery(path.join(staticDir, 'bundle.js'));
+  const cssVersion = cacheBustQuery(path.join(staticDir, 'bundle.css'));
+  return (
+    `<script src="${ACTUALMINT_BUNDLE_PATH}/bundle.js${jsVersion}"></script>` +
+    `<link rel="stylesheet" href="${ACTUALMINT_BUNDLE_PATH}/bundle.css${cssVersion}">`
+  );
+}
 
 const DECODERS = {
   gzip: zlib.gunzip,
@@ -53,9 +78,9 @@ function decodeBody(buffer, encoding, callback) {
   decoder(buffer, callback);
 }
 
-// Proxies req to `origin`. When `rewriteHtml` is true, HTML responses get the bundle tags injected;
-// otherwise every response streams through unmodified.
-function proxyTo(origin, rewriteHtml, req, res) {
+// Proxies req to `origin`. When `rewriteHtml` is true, HTML responses get the bundle tags injected
+// (reading cache-bust info from `staticDir`); otherwise every response streams through unmodified.
+function proxyTo(origin, rewriteHtml, req, res, staticDir) {
   const target = new URL(`${origin.replace(/\/$/, '')}${req.originalUrl}`);
   const transport = target.protocol === 'https:' ? https : http;
 
@@ -83,7 +108,7 @@ function proxyTo(origin, rewriteHtml, req, res) {
           res.end(`actualmint-proxy: ${decodeErr.message}`);
           return;
         }
-        const body = Buffer.from(injectTags(decoded.toString('utf8'), INJECTED_TAGS), 'utf8');
+        const body = Buffer.from(injectTags(decoded.toString('utf8'), buildInjectedTags(staticDir)), 'utf8');
         const outHeaders = { ...upstreamRes.headers, 'content-length': body.length };
         delete outHeaders['content-encoding'];
         delete outHeaders['transfer-encoding'];
@@ -103,19 +128,19 @@ function proxyTo(origin, rewriteHtml, req, res) {
   req.pipe(upstreamReq);
 }
 
-function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN } = {}) {
+function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN, staticDir = STATIC_DIR } = {}) {
   const app = express();
 
-  app.use(ACTUALMINT_BUNDLE_PATH, express.static(STATIC_DIR));
+  app.use(ACTUALMINT_BUNDLE_PATH, express.static(staticDir));
   // Anything under the bundle prefix that static did not serve is a 404, not a proxied abt request.
   app.use(ACTUALMINT_BUNDLE_PATH, (req, res) => res.status(404).end());
   // /api/* goes to actualmint-api as a plain passthrough (JSON, no HTML rewriting).
   app.use((req, res, next) => {
-    if (req.originalUrl.startsWith(API_PATH_PREFIX)) return proxyTo(apiOrigin, false, req, res);
+    if (req.originalUrl.startsWith(API_PATH_PREFIX)) return proxyTo(apiOrigin, false, req, res, staticDir);
     return next();
   });
   // Everything else is abt, with HTML responses rewritten to include the bundle.
-  app.use((req, res) => proxyTo(abtOrigin, true, req, res));
+  app.use((req, res) => proxyTo(abtOrigin, true, req, res, staticDir));
 
   return app;
 }

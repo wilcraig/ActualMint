@@ -145,3 +145,32 @@ test('Generate selects the textarea contents once a selection is made', async ()
   expect(selectSpy).toHaveBeenCalled();
   expect(textarea.value).toBe('{{ACTUALMINT:pacing-bars:["c1"]}}');
 });
+
+test('a zero-field widget (e.g. month-end-net) is immediately generatable, no picker fetch', async () => {
+  // pacing-bars (the default-selected widget) fetches its category picker
+  // data eagerly at mount time regardless of which widget ends up chosen;
+  // give it a clean response so this test's own fetchApi count assertion
+  // isn't muddied by an unrelated error path.
+  fetchApi.mockResolvedValueOnce(okJson({ categories: [{ id: 'c1', name: 'Groceries' }] }));
+  mount();
+  await flush();
+  open();
+  await flush();
+
+  const select = document.querySelector('.actualmint-wb-field select');
+  select.value = 'month-end-net';
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+
+  // Selecting a zero-field widget must not trigger any picker fetch -- the
+  // one fetch so far is pacing-bars' own eager load from mount().
+  expect(fetchApi).toHaveBeenCalledTimes(1);
+
+  const generateButton = document.querySelector('.actualmint-wb-generate');
+  expect(generateButton.disabled).toBe(false);
+
+  generateButton.click();
+  await flush();
+
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe('{{ACTUALMINT:month-end-net:{}}}');
+});

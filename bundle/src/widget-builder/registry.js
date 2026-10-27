@@ -8,4 +8,24 @@ export const WIDGET_REGISTRY = [
       { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
     ],
   },
+  {
+    id: 'month-end-net',
+    label: 'Projected month-end net',
+    fields: [],
+  },
+  {
+    id: 'paycheck-alerts',
+    label: 'Paycheck alerts (3-paycheck months)',
+    fields: [],
+  },
+  {
+    id: 'bills-timeline',
+    label: 'Bills / autopay timeline',
+    fields: [],
+  },
+  {
+    id: 'account-balances',
+    label: 'Account balances chart',
+    fields: [],
+  },
 ];
