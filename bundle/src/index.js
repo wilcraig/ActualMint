@@ -4,6 +4,7 @@ import PacingBars from './widgets/PacingBars.svelte';
 import MonthEndNet from './widgets/MonthEndNet.svelte';
 import PaycheckAlertBanner from './widgets/PaycheckAlertBanner.svelte';
 import BillsTimeline from './widgets/BillsTimeline.svelte';
+import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import { mountPanel } from './widget-builder/mount-panel';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 
@@ -46,6 +47,16 @@ mountWidget('{{ACTUALMINT:paycheck-alerts:', (host) => {
 //   {{ACTUALMINT:bills-timeline:null}}
 mountWidget('{{ACTUALMINT:bills-timeline:', (host) => {
   new BillsTimeline({ target: host });
+});
+
+// AccountBalancesChart takes no config (mount.js still requires the
+// placeholder's body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:account-balances:}}` fails to parse and the widget never
+// mounts). To add this widget, type the following literal text into an
+// Actual Reports "Text widget":
+//   {{ACTUALMINT:account-balances:null}}
+mountWidget('{{ACTUALMINT:account-balances:', (host) => {
+  new AccountBalancesChart({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside
