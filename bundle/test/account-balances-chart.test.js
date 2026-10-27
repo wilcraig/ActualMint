@@ -86,11 +86,41 @@ test('with an accountIds prop, fetches with a comma-joined accounts filter', asy
   expect(decodeURIComponent(url)).toContain('accounts=acc1,acc2');
 });
 
-test('renders one line per account plus a visually distinct net-worth line', async () => {
+function switchToCombinedView(target) {
+  const combinedButton = Array.from(target.querySelectorAll('button.balances-range-button')).find(
+    (b) => b.textContent.trim() === 'Combined',
+  );
+  combinedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+test('separate view (the default): one mini area chart per account, each with its own large current-balance figure', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
   const target = mountChart();
   await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // 2 accounts + 1 Total card.
+  expect(target.querySelectorAll('.balances-mini-card').length).toBe(3);
+  expect(target.querySelectorAll('.balances-mini-area').length).toBe(3);
+
+  const values = Array.from(target.querySelectorAll('.balances-mini-value')).map((el) => el.textContent.trim());
+  expect(values).toContain('$110.00'); // Checking's latest balance, 11000 cents
+  expect(values).toContain('$505.00'); // Savings' latest balance, 50500 cents
+  expect(values).toContain('$615.00'); // Total/net worth's latest balance, 61500 cents
+
+  // No combined-view elements rendered at the same time.
+  expect(target.querySelector('path.balances-line')).toBeNull();
+});
+
+test('combined view: one line per account plus a visually distinct net-worth line', async () => {
+  fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
+
+  const target = mountChart();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  switchToCombinedView(target);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   const lines = target.querySelectorAll('path.balances-line');
@@ -204,7 +234,8 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(target.querySelectorAll('path.balances-line').length).toBe(3);
+  // 2 accounts + 1 Total card, in the default separate view.
+  expect(target.querySelectorAll('.balances-mini-card').length).toBe(3);
 
   resolveFirst(
     jsonResponse({
@@ -219,6 +250,6 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
 
   // The stale (single-day) response must not have overwritten the newer,
   // fully-populated chart with an empty-state render.
-  expect(target.querySelectorAll('path.balances-line').length).toBe(3);
+  expect(target.querySelectorAll('.balances-mini-card').length).toBe(3);
   expect(target.textContent).not.toContain('Not enough balance history yet to chart.');
 });
