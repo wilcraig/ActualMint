@@ -16,11 +16,6 @@ function renderThemesCard() {
 beforeEach(() => {
   document.body.innerHTML = '';
   window.history.pushState({}, '', '/budget');
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
 });
 
 test('constructs the component exactly once, even across repeated /settings visits', () => {
@@ -73,7 +68,7 @@ test('navigating away hides the container without removing it from the document'
   expect(container.style.display).toBe('none');
 });
 
-test('retries on a short interval until the Themes card appears, then attaches', () => {
+test('keeps watching (no arbitrary timeout) until the Themes card appears, then attaches', async () => {
   class FakeSection {
     constructor() {}
   }
@@ -84,13 +79,18 @@ test('retries on a short interval until the Themes card appears, then attaches',
   window.history.pushState({}, '', '/settings');
   expect(container.style.display).toBe('none');
 
-  // No Themes card yet -- several retries pass with no attach.
-  vi.advanceTimersByTime(300);
+  // No Themes card yet -- confirmed no attach.
+  await Promise.resolve();
   expect(container.isConnected).toBe(true);
   expect(container.previousElementSibling).toBeNull();
 
+  // Simulate a slow-rendering settings page (e.g. a real deployment's
+  // Actual Budget Tweaks panel, confirmed live to take several seconds) --
+  // the Themes card finally appears well after the page "loaded".
   const themesCard = renderThemesCard();
-  vi.advanceTimersByTime(100);
+  // MutationObserver callbacks fire as a microtask, not synchronously.
+  await Promise.resolve();
+  await Promise.resolve();
   expect(container.previousElementSibling).toBe(themesCard);
 });
 

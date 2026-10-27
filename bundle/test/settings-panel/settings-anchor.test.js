@@ -1,4 +1,4 @@
-import { isSettingsPath, findThemesCard } from '../../src/settings-panel/settings-anchor';
+import { isSettingsPath, findThemesCard, findSettingsAnchor } from '../../src/settings-panel/settings-anchor';
 
 describe('isSettingsPath', () => {
   test('true only for exactly /settings', () => {
@@ -58,5 +58,53 @@ describe('findThemesCard', () => {
   test('does not match a heading whose ancestors never reach a wide-enough stack', () => {
     document.body.innerHTML = '<div><span><strong>Themes</strong></span></div>';
     expect(findThemesCard(document)).toBeNull();
+  });
+});
+
+describe('findSettingsAnchor', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  // Confirmed live on a real deployment: the Actual Budget Tweaks (ABT)
+  // sidecar replaces Actual's native "Themes" card outright with its own
+  // theme-picker panel, in the same card-stack slot -- the literal text
+  // "Themes" is gone from the page entirely.
+  function renderAbtSettingsStack() {
+    const stack = document.createElement('div');
+    const cardNames = [
+      'Actual', 'Actual Budget Tweaks', 'Formatting', 'Language', 'Authentication',
+    ];
+    for (const name of cardNames) {
+      const card = document.createElement('div');
+      const heading = document.createElement('h2');
+      heading.textContent = name;
+      card.appendChild(heading);
+      stack.appendChild(card);
+    }
+    document.body.appendChild(stack);
+    return stack;
+  }
+
+  test('falls back to the Actual Budget Tweaks card when no Themes card exists', () => {
+    const stack = renderAbtSettingsStack();
+    const card = findSettingsAnchor(document);
+    expect(card).not.toBeNull();
+    expect(card.parentElement).toBe(stack);
+    expect(card.textContent).toContain('Actual Budget Tweaks');
+  });
+
+  test('prefers the native Themes card when both exist', () => {
+    const stack = renderAbtSettingsStack();
+    const themesCard = document.createElement('div');
+    themesCard.innerHTML = '<strong>Themes</strong>';
+    stack.appendChild(themesCard);
+
+    expect(findSettingsAnchor(document)).toBe(themesCard);
+  });
+
+  test('returns null when neither heading exists', () => {
+    document.body.innerHTML = '<div><span>Nothing here</span></div>';
+    expect(findSettingsAnchor(document)).toBeNull();
   });
 });

@@ -62,8 +62,22 @@ export const MINT_PALETTE = {
   '--palette-chartQual9': '#5a7684',
 };
 
+// A couple of semantic `--color-*` tokens, overridden directly instead of
+// through the palette above. Confirmed live: Actual's sidebar hardcodes
+// `--color-sidebarBackground: var(--palette-navy900)`, so recoloring navy900
+// (the dark end of the teal ramp above) also turned the sidebar a dark
+// forest green -- jarring next to the rest of the now-light, airy page.
+// Overriding these two tokens directly keeps the sidebar a neutral light
+// gray without touching navy900 itself, which other elements still use
+// (and which this theme needs to keep dark for contrast elsewhere).
+export const MINT_COLOR_OVERRIDES = {
+  '--color-sidebarBackground': '#f2f4f3',
+  '--color-sidebarItemText': '#0b2419',
+};
+
 function buildCss() {
-  const decls = Object.entries(MINT_PALETTE)
+  const allDecls = { ...MINT_PALETTE, ...MINT_COLOR_OVERRIDES };
+  const decls = Object.entries(allDecls)
     .map(([name, value]) => `${name}: ${value} !important;`)
     .join(' ');
   return `:root { ${decls} }`;

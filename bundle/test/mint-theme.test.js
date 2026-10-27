@@ -1,5 +1,6 @@
 import {
   MINT_PALETTE,
+  MINT_COLOR_OVERRIDES,
   applyMintTheme,
   loadSavedMintThemeEnabled,
   saveMintThemeEnabled,
@@ -22,6 +23,14 @@ test('applyMintTheme(doc, true) creates a style element overriding every palette
   const styleEl = document.getElementById('actualmint-mint-theme');
   expect(styleEl).not.toBeNull();
   for (const [name, value] of Object.entries(MINT_PALETTE)) {
+    expect(styleEl.textContent).toContain(`${name}: ${value} !important;`);
+  }
+});
+
+test('applyMintTheme(doc, true) overrides the sidebar colors directly, not just the palette', () => {
+  applyMintTheme(document, true);
+  const styleEl = document.getElementById('actualmint-mint-theme');
+  for (const [name, value] of Object.entries(MINT_COLOR_OVERRIDES)) {
     expect(styleEl.textContent).toContain(`${name}: ${value} !important;`);
   }
 });

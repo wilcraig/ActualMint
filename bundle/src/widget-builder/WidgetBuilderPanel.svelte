@@ -1,20 +1,17 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { isReportsPath, watchRoute } from './route-watcher';
-  import { findAddWidgetButton } from './toolbar-anchor';
   import { buildPlaceholder } from './placeholder';
   import { copyText } from './clipboard';
   import { WIDGET_REGISTRY } from './registry';
   import { describePickerError } from './picker-error';
   import { fetchApi } from '../api-client';
 
-  const MAX_LOCATE_ATTEMPTS = 20;
-  const LOCATE_RETRY_MS = 100;
-
-  let visible = $state(false);
+  // Whether this is shown at all is controlled externally, by
+  // mount-toolbar.js attaching/detaching this component's own container
+  // next to Actual's own "Add new widget" button -- not by this flag.
+  // `open` only toggles the dropdown panel below the toggle button.
   let open = $state(false);
-  let posTop = $state(0);
-  let posLeft = $state(0);
   let selectedWidgetId = $state(WIDGET_REGISTRY[0]?.id ?? '');
   let values = $state({});
   let pickerData = $state({});
@@ -28,70 +25,18 @@
     WIDGET_REGISTRY.find((widget) => widget.id === selectedWidgetId) ?? null,
   );
 
-  let locateAttempt = 0;
-  let locateTimer = null;
-
-  // The toolbar's "Add new widget" button isn't guaranteed to exist the
-  // instant the route changes to /reports* (React renders a tick later,
-  // confirmed live) -- retry briefly rather than giving up after one miss.
-  function positionNear(button) {
-    const rect = button.getBoundingClientRect();
-    posTop = rect.top;
-    posLeft = rect.right + 8;
-    visible = true;
-  }
-
-  function tryLocate() {
-    const button = findAddWidgetButton(document);
-    if (button) {
-      positionNear(button);
-      return;
-    }
-    locateAttempt += 1;
-    if (locateAttempt < MAX_LOCATE_ATTEMPTS) {
-      locateTimer = window.setTimeout(tryLocate, LOCATE_RETRY_MS);
-    } else {
-      visible = false;
-    }
-  }
-
-  function relocateIfVisible() {
-    if (!visible) return;
-    const button = findAddWidgetButton(document);
-    if (button) positionNear(button);
-  }
-
   onMount(() => {
+    // Closes the dropdown if the user navigates away from Reports while it
+    // was open, so it doesn't reappear already-open next time.
     const unwatch = watchRoute(window, (pathname) => {
-      if (locateTimer) {
-        window.clearTimeout(locateTimer);
-        locateTimer = null;
-      }
-      if (isReportsPath(pathname)) {
-        locateAttempt = 0;
-        tryLocate();
-      } else {
-        visible = false;
-        open = false;
-      }
+      if (!isReportsPath(pathname)) open = false;
     });
-
-    window.addEventListener('resize', relocateIfVisible);
-    // `scroll` doesn't bubble, so capture-phase is needed to catch scrolling
-    // inside Actual's own scrollable content area, not just window-level
-    // scroll.
-    window.addEventListener('scroll', relocateIfVisible, true);
 
     if (selectedWidgetId) {
       selectWidget(selectedWidgetId);
     }
 
-    return () => {
-      unwatch();
-      window.removeEventListener('resize', relocateIfVisible);
-      window.removeEventListener('scroll', relocateIfVisible, true);
-      if (locateTimer) window.clearTimeout(locateTimer);
-    };
+    return unwatch;
   });
 
   function isPickerField(field) {
@@ -218,8 +163,7 @@
   }
 </script>
 
-{#if visible}
-  <div class="actualmint-widget-builder" style="top: {posTop}px; left: {posLeft}px;">
+<div class="actualmint-widget-builder">
     <button type="button" class="actualmint-wb-toggle" onclick={toggleOpen}>
       {open ? 'Close widget builder' : 'Widget builder'}
     </button>
@@ -306,16 +250,17 @@
         </div>
       </div>
     {/if}
-  </div>
-{/if}
+</div>
 
 <style>
   .actualmint-widget-builder {
-    /* top/left are set inline, computed from Actual's own "Add new widget"
-       button's live position (see toolbar-anchor.js) so this sits right
-       next to it instead of floating at a fixed screen corner. */
-    position: fixed;
-    z-index: 9999;
+    /* A normal inline sibling of Actual's own "Add new widget" button
+       (see mount-toolbar.js), not a fixed overlay -- `position: relative`
+       only to anchor the dropdown panel below it (position: absolute). */
+    position: relative;
+    display: inline-block;
+    margin-left: 0.5rem;
+    z-index: 10;
     font-family: inherit;
     font-size: 0.9rem;
   }
