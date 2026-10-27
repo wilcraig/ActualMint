@@ -7,6 +7,7 @@ import BillsTimeline from './widgets/BillsTimeline.svelte';
 import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import { mountPanel } from './widget-builder/mount-panel';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
+import TextScaleControl from './widgets/TextScaleControl.svelte';
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
@@ -63,3 +64,8 @@ mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
 // Panel mounting has no dependency on sessionStorage, so it stays outside
 // the try/catch above.
 mountPanel(document, WidgetBuilderPanel);
+
+// Unlike the widget-builder panel, the text-size control applies globally
+// (Budget and Schedules pages included, not just /reports*) -- it mounts on
+// every page load, independent of sessionStorage.
+mountPanel(document, TextScaleControl);
