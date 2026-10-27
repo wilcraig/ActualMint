@@ -19,18 +19,62 @@ let everConnected = false;
 let lastSyncAt = 0; // ms, per Date.now(); 0 means "never synced in this process"
 let syncInFlight = null; // the in-flight sync() promise, shared by concurrent callers; never rejects
 
-function openClient() {
+// downloadBudget() always performs a full-history CRDT resync from message
+// zero, regardless of what's already cached on disk -- fine for a small
+// budget, but this household's message log has grown past ~250k messages
+// (years of imported history plus the categorization/duplicate-merge
+// recovery work), where a full resync reliably takes 40-90+ seconds and has
+// been observed to fail outright (EPIPE/network-failure). Every recycle
+// (hourly, see RECYCLE_MS) called downloadBudget() again, so once an hour
+// every widget on the page would hang -- sharing the one clientPromise
+// below -- for however long that resync took, or error out entirely.
+//
+// loadBudget() + sync(), by contrast, opens the budget from whatever's
+// already on disk (same dataDir, which survives a recycle since that only
+// tears down the in-process @actual-app/api connection, not the container's
+// filesystem) and catches up incrementally -- the same fast, reliable path
+// proven out manually against this exact budget during the recovery work.
+// So: only the very first connection this container ever makes (no local
+// cache yet) pays the slow/fragile downloadBudget() cost; every recycle
+// after that reuses the local cache instead.
+async function findCachedLocalBudgetId(syncId) {
+  try {
+    const localBudgets = await api.getBudgets();
+    // getBudgets() returns both locally-downloaded budgets (which have an
+    // `id` -- the local folder name loadBudget() takes) and budgets that
+    // only exist on the server so far (no `id`, `state: "remote"`); only
+    // the former is usable here. Despite its field name, `ACTUAL_SYNC_ID`
+    // in this deployment's .env is the sync *group* id, matching each
+    // entry's `groupId` -- confirmed by direct inspection: the local
+    // entry's groupId equals the exact value downloadBudget() has always
+    // been called with throughout this project, not its cloudFileId.
+    const match = (localBudgets || []).find((b) => b.id && b.groupId === syncId);
+    return match ? match.id : null;
+  } catch (err) {
+    // A failure here just means "assume no cache" -- downloadBudget() is
+    // always a safe (if slower) fallback, never a hard failure.
+    console.error('actual-client: getBudgets failed while checking for a local cache', err);
+    return null;
+  }
+}
+
+async function openClient() {
   const { ACTUAL_SERVER_URL, ACTUAL_SERVER_PASSWORD, ACTUAL_SYNC_ID, ACTUAL_E2E_PASSWORD } = process.env;
-  return api
-    .init({ serverURL: ACTUAL_SERVER_URL, password: ACTUAL_SERVER_PASSWORD })
-    .then(() => api.downloadBudget(ACTUAL_SYNC_ID, { password: ACTUAL_E2E_PASSWORD || undefined }))
-    .then(() => {
-      // downloadBudget() already performs an initial sync; start the
-      // throttle window from here so a request arriving immediately after
-      // init doesn't trigger a redundant second sync.
-      lastSyncAt = Date.now();
-      return api;
-    });
+  await api.init({ serverURL: ACTUAL_SERVER_URL, password: ACTUAL_SERVER_PASSWORD });
+
+  const cachedId = await findCachedLocalBudgetId(ACTUAL_SYNC_ID);
+  if (cachedId) {
+    await api.loadBudget(cachedId);
+    await api.sync();
+  } else {
+    await api.downloadBudget(ACTUAL_SYNC_ID, { password: ACTUAL_E2E_PASSWORD || undefined });
+  }
+
+  // Either path above already performs a sync; start the throttle window
+  // from here so a request arriving immediately after init doesn't trigger
+  // a redundant second one.
+  lastSyncAt = Date.now();
+  return api;
 }
 
 function scheduleRecycle() {

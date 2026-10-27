@@ -1,6 +1,8 @@
 jest.mock('@actual-app/api', () => ({
   init: jest.fn().mockResolvedValue(),
   downloadBudget: jest.fn().mockResolvedValue(),
+  loadBudget: jest.fn().mockResolvedValue(),
+  getBudgets: jest.fn().mockResolvedValue([]),
   shutdown: jest.fn().mockResolvedValue(),
   sync: jest.fn().mockResolvedValue(),
 }));

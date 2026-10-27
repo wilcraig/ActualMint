@@ -1,6 +1,12 @@
 jest.mock('@actual-app/api', () => ({
   init: jest.fn().mockResolvedValue(),
   downloadBudget: jest.fn().mockResolvedValue(),
+  loadBudget: jest.fn().mockResolvedValue(),
+  sync: jest.fn().mockResolvedValue(),
+  // Empty by default -- "no local cache yet" -- so every existing test here
+  // keeps exercising the downloadBudget() path unchanged; cache-reuse
+  // behavior gets its own tests below.
+  getBudgets: jest.fn().mockResolvedValue([]),
   shutdown: jest.fn().mockResolvedValue(),
 }));
 jest.useFakeTimers();
