@@ -8,6 +8,14 @@ vi.mock('../../src/api-client', () => ({
 import { fetchApi } from '../../src/api-client';
 
 function mount() {
+  // The panel positions itself next to Actual's own "Add new widget"
+  // button (see toolbar-anchor.js); without one present it retries on a
+  // timer and never becomes visible, so every test needs one in the DOM
+  // before constructing the panel.
+  const addWidgetButton = document.createElement('button');
+  addWidgetButton.textContent = 'Add new widget';
+  document.body.appendChild(addWidgetButton);
+
   const target = document.createElement('div');
   document.body.appendChild(target);
   return new WidgetBuilderPanel({ target });
@@ -34,6 +42,18 @@ beforeEach(() => {
   document.body.innerHTML = '';
   window.history.pushState({}, '', '/reports/custom');
   fetchApi.mockReset();
+});
+
+test('positions itself next to the live "Add new widget" button, not a fixed corner', async () => {
+  fetchApi.mockResolvedValueOnce({ ok: false, status: 500 });
+  mount();
+  await flush();
+
+  const addWidgetButton = document.querySelector('button');
+  const rect = addWidgetButton.getBoundingClientRect();
+  const toggle = document.querySelector('.actualmint-widget-builder');
+  expect(toggle.style.top).toBe(`${rect.top}px`);
+  expect(toggle.style.left).toBe(`${rect.right + 8}px`);
 });
 
 // selectWidget() fetches picker data eagerly at mount time (regardless of

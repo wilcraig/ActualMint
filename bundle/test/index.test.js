@@ -14,6 +14,8 @@ vi.mock('../src/redirect', () => ({
 vi.mock('../src/widgets/PacingBars.svelte', () => ({ default: class {} }));
 vi.mock('../src/widget-builder/mount-panel', () => ({ mountPanel: vi.fn() }));
 vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
+vi.mock('../src/settings-panel/mount-settings', () => ({ mountSettingsSection: vi.fn() }));
+vi.mock('../src/settings-panel/SettingsSection.svelte', () => ({ default: class {} }));
 
 test('mountWidget still runs when accessing sessionStorage throws', async () => {
   const { mountWidget } = await import('../src/mount');
@@ -35,4 +37,14 @@ test('mountPanel is called to mount the widget-builder panel', async () => {
   await import('../src/index.js');
 
   expect(mountPanel).toHaveBeenCalled();
+});
+
+test('mountSettingsSection is called to mount the settings-page section', async () => {
+  vi.resetModules();
+
+  const { mountSettingsSection } = await import('../src/settings-panel/mount-settings');
+
+  await import('../src/index.js');
+
+  expect(mountSettingsSection).toHaveBeenCalled();
 });

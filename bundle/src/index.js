@@ -7,13 +7,33 @@ import BillsTimeline from './widgets/BillsTimeline.svelte';
 import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import { mountPanel } from './widget-builder/mount-panel';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
-import TextScaleControl from './widgets/TextScaleControl.svelte';
-import MintThemeControl from './widgets/MintThemeControl.svelte';
+import { mountSettingsSection } from './settings-panel/mount-settings';
+import SettingsSection from './settings-panel/SettingsSection.svelte';
+import { PRESETS, loadSavedScale, applyScale } from './text-scale';
+import { loadSavedMintThemeEnabled, applyMintTheme } from './mint-theme';
 import { fixBudgetIconCrop } from './budget-icon-fix';
 
 // Pure CSS, no DOM dependency beyond `document.head` -- safe to run
 // unconditionally on every page load, independent of sessionStorage.
 fixBudgetIconCrop(document);
+
+// Applies the saved text size and Mint-style theme on every page load
+// (Budget and Schedules pages included, not just /reports*) -- both are
+// controlled from a settings card on Actual's own Settings page (see
+// settings-panel/), not a floating button, but still need to take effect
+// everywhere, not just while that page is open. Referencing
+// `window.localStorage` can itself throw (not just its methods) under
+// strict privacy settings, so each is guarded independently.
+try {
+  applyScale(document, loadSavedScale(window.localStorage));
+} catch {
+  applyScale(document, PRESETS[0].px);
+}
+try {
+  applyMintTheme(document, loadSavedMintThemeEnabled(window.localStorage));
+} catch {
+  applyMintTheme(document, false);
+}
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
@@ -71,11 +91,7 @@ mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
 // the try/catch above.
 mountPanel(document, WidgetBuilderPanel);
 
-// Unlike the widget-builder panel, the text-size control applies globally
-// (Budget and Schedules pages included, not just /reports*) -- it mounts on
-// every page load, independent of sessionStorage.
-mountPanel(document, TextScaleControl);
-
-// Same reasoning as TextScaleControl: the Mint-style theme recolors Budget
-// and Transaction pages too, not just Reports, so it mounts everywhere.
-mountPanel(document, MintThemeControl);
+// Text size and Mint-style theme are controlled from a settings card
+// injected next to Actual's own "Themes" card on /settings, not a floating
+// button -- see settings-panel/mount-settings.js.
+mountSettingsSection(document, window, SettingsSection);

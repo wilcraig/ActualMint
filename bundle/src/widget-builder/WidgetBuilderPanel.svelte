@@ -1,14 +1,20 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { isReportsPath, watchRoute } from './route-watcher';
+  import { findAddWidgetButton } from './toolbar-anchor';
   import { buildPlaceholder } from './placeholder';
   import { copyText } from './clipboard';
   import { WIDGET_REGISTRY } from './registry';
   import { describePickerError } from './picker-error';
   import { fetchApi } from '../api-client';
 
+  const MAX_LOCATE_ATTEMPTS = 20;
+  const LOCATE_RETRY_MS = 100;
+
   let visible = $state(false);
   let open = $state(false);
+  let posTop = $state(0);
+  let posLeft = $state(0);
   let selectedWidgetId = $state(WIDGET_REGISTRY[0]?.id ?? '');
   let values = $state({});
   let pickerData = $state({});
@@ -22,17 +28,70 @@
     WIDGET_REGISTRY.find((widget) => widget.id === selectedWidgetId) ?? null,
   );
 
+  let locateAttempt = 0;
+  let locateTimer = null;
+
+  // The toolbar's "Add new widget" button isn't guaranteed to exist the
+  // instant the route changes to /reports* (React renders a tick later,
+  // confirmed live) -- retry briefly rather than giving up after one miss.
+  function positionNear(button) {
+    const rect = button.getBoundingClientRect();
+    posTop = rect.top;
+    posLeft = rect.right + 8;
+    visible = true;
+  }
+
+  function tryLocate() {
+    const button = findAddWidgetButton(document);
+    if (button) {
+      positionNear(button);
+      return;
+    }
+    locateAttempt += 1;
+    if (locateAttempt < MAX_LOCATE_ATTEMPTS) {
+      locateTimer = window.setTimeout(tryLocate, LOCATE_RETRY_MS);
+    } else {
+      visible = false;
+    }
+  }
+
+  function relocateIfVisible() {
+    if (!visible) return;
+    const button = findAddWidgetButton(document);
+    if (button) positionNear(button);
+  }
+
   onMount(() => {
     const unwatch = watchRoute(window, (pathname) => {
-      visible = isReportsPath(pathname);
-      if (!visible) open = false;
+      if (locateTimer) {
+        window.clearTimeout(locateTimer);
+        locateTimer = null;
+      }
+      if (isReportsPath(pathname)) {
+        locateAttempt = 0;
+        tryLocate();
+      } else {
+        visible = false;
+        open = false;
+      }
     });
+
+    window.addEventListener('resize', relocateIfVisible);
+    // `scroll` doesn't bubble, so capture-phase is needed to catch scrolling
+    // inside Actual's own scrollable content area, not just window-level
+    // scroll.
+    window.addEventListener('scroll', relocateIfVisible, true);
 
     if (selectedWidgetId) {
       selectWidget(selectedWidgetId);
     }
 
-    return unwatch;
+    return () => {
+      unwatch();
+      window.removeEventListener('resize', relocateIfVisible);
+      window.removeEventListener('scroll', relocateIfVisible, true);
+      if (locateTimer) window.clearTimeout(locateTimer);
+    };
   });
 
   function isPickerField(field) {
@@ -160,7 +219,7 @@
 </script>
 
 {#if visible}
-  <div class="actualmint-widget-builder">
+  <div class="actualmint-widget-builder" style="top: {posTop}px; left: {posLeft}px;">
     <button type="button" class="actualmint-wb-toggle" onclick={toggleOpen}>
       {open ? 'Close widget builder' : 'Widget builder'}
     </button>
@@ -252,49 +311,39 @@
 
 <style>
   .actualmint-widget-builder {
+    /* top/left are set inline, computed from Actual's own "Add new widget"
+       button's live position (see toolbar-anchor.js) so this sits right
+       next to it instead of floating at a fixed screen corner. */
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
     z-index: 9999;
     font-family: inherit;
     font-size: 0.9rem;
   }
 
-  /* Actual's own mobile bottom tab bar (Budget/Transaction/Accounts) is a
-     fixed, full-width, 70px-tall bar flush with the viewport bottom
-     (confirmed by live inspection). Below this width it always shows that
-     bar, so raise this button to clear it; stays right-anchored (the
-     text-scale control moves to the opposite, left side on mobile instead,
-     so the two can never collide). */
-  @media (max-width: 767px) {
-    .actualmint-widget-builder {
-      bottom: 76px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* The panel normally opens downward below the toggle (margin-top).
-       With the toggle now sitting just above Actual's own nav bar, opening
-       downward would run the panel's content under that nav bar. Flip it
-       to open upward instead (order: -1 needs the flex container above). */
-    .actualmint-wb-panel {
-      margin-top: 0;
-      margin-bottom: 0.5rem;
-      order: -1;
-    }
-  }
-
+  /* Styled as a plain secondary toolbar button (matching Actual's own
+     "Edit dashboard" button next to it) now that this sits inline in the
+     toolbar instead of floating as its own dark pill. */
   .actualmint-wb-toggle {
     cursor: pointer;
     padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid #333;
-    background: #1f2937;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 0.25rem;
+    border: 1px solid var(--color-buttonNormalBorder, #ccc);
+    background: var(--color-buttonNormalBackground, #fff);
+    color: var(--color-buttonNormalText, #222);
+    font: inherit;
   }
 
   .actualmint-wb-panel {
+    /* Anchored to the wrapper's own right edge (flush with the toggle
+       button, since the wrapper's width is just that button) rather than
+       left-aligned in normal flow -- the toggle sits wherever "Add new
+       widget" happens to be (often near the right edge of the toolbar), so
+       a left-aligned, fixed-width panel can run off the right edge of the
+       viewport. Growing left from a right anchor instead keeps it on
+       screen regardless of the button's own position. */
+    position: absolute;
+    top: 100%;
+    right: 0;
     margin-top: 0.5rem;
     width: 20rem;
     max-height: 28rem;

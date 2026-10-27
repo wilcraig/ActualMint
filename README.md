@@ -36,28 +36,30 @@ Actual ships a new release.
   breakdown of categories → payees → transactions.
 - **Widget builder** — generates the exact placeholder string for any
   widget above (pick the type, check off categories or accounts, copy the
-  result), so you never hand-write one.
+  result), so you never hand-write one. Lives right next to Actual's own
+  "Add new widget" button on the Reports toolbar.
 - **Mint-style theme** — a one-click re-skin of Actual's own color palette
   (Budget, Transactions, and Reports alike) into a light, airy
   teal-and-white look reminiscent of Mint.com, for the muscle memory of
-  anyone who used it. Persisted per-browser in `localStorage`, same as the
-  text-size control. Pick Actual's own **Light** theme first (Settings →
-  Themes → Theme) — the recolor assumes a light background, so pairing it
-  with Actual's Dark or Midnight theme looks muddy instead of airy.
-- **Global text-size control** — a persistent "Aa" control that bumps the
-  size of the *entire* app (budget tables, transaction registers, reports,
-  schedules — not just ActualMint's own widgets) for a browser/device that
-  needs bigger text. Persisted per-browser in `localStorage`.
-- All of the floating controls reposition themselves above Actual's own
-  mobile bottom navigation bar, so none of them ever overlaps it.
+  anyone who used it. Toggled from a new "ActualMint" card injected right
+  below Actual's own "Themes" card on its Settings page — not a floating
+  button — and persisted per-browser in `localStorage`. Pick Actual's own
+  **Light** theme first (the dropdown just above that card) — the recolor
+  assumes a light background, so pairing it with Actual's Dark or Midnight
+  theme looks muddy instead of airy.
+- **Global text-size control** — set from that same "ActualMint" settings
+  card, bumps the size of the *entire* app (budget tables, transaction
+  registers, reports, schedules — not just ActualMint's own widgets) for a
+  browser/device that needs bigger text. Persisted per-browser in
+  `localStorage`.
 
 | Reports widgets | Text size control |
 | --- | --- |
 | ![Reports page with pacing bars, projected net, and an account balance chart](docs/screenshots/reports-widgets.jpg) | ![Transaction register at the Large text-size preset](docs/screenshots/text-scale-large.jpg) |
 
-| Widget builder | Mobile |
+| Widget builder | Settings |
 | --- | --- |
-| ![Widget builder panel: pick a widget type, check off categories, copy the generated placeholder](docs/screenshots/widget-builder.jpg) | ![Aa and Widget builder buttons sitting clear of Actual's native mobile nav bar](docs/screenshots/mobile-nav.jpg) |
+| ![Widget builder button next to Actual's own "Add new widget" button, panel open](docs/screenshots/widget-builder.jpg) | ![The ActualMint settings card injected below Actual's own Themes card](docs/screenshots/settings-card.jpg) |
 
 ## Architecture
 
