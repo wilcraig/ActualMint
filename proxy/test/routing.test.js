@@ -233,3 +233,60 @@ describe('cache-busted bundle tags', () => {
     }
   });
 });
+
+describe('service worker kill switch', () => {
+  let abt;
+  let api;
+  let proxy;
+  let proxyPort;
+
+  beforeAll(async () => {
+    abt = await startStub('abt');
+    api = await startStub('api');
+    const app = createApp({ abtOrigin: abt.url, apiOrigin: api.url });
+    proxy = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => proxy.once('listening', resolve));
+    proxyPort = proxy.address().port;
+  });
+
+  afterAll(() => {
+    proxy.close();
+    abt.server.close();
+    api.server.close();
+  });
+
+  beforeEach(() => {
+    abt.received.length = 0;
+  });
+
+  test('GET /sw.js is answered directly, never proxied to abt (which would serve Actual\'s real precaching worker)', async () => {
+    const res = await get(proxyPort, '/sw.js');
+
+    expect(res.status).toBe(200);
+    expect(abt.received).toEqual([]);
+  });
+
+  test('the replacement service worker skips waiting, clears every cache, and unregisters itself', async () => {
+    const res = await get(proxyPort, '/sw.js');
+
+    expect(res.body).toContain('self.skipWaiting()');
+    expect(res.body).toContain('caches.keys()');
+    expect(res.body).toContain('caches.delete(');
+    expect(res.body).toContain('self.registration.unregister()');
+  });
+
+  test('is served as non-cacheable JavaScript', async () => {
+    const res = await new Promise((resolve, reject) => {
+      http
+        .get({ host: '127.0.0.1', port: proxyPort, path: '/sw.js' }, (response) => {
+          let body = '';
+          response.on('data', (chunk) => (body += chunk));
+          response.on('end', () => resolve({ headers: response.headers, body }));
+        })
+        .on('error', reject);
+    });
+
+    expect(res.headers['content-type']).toMatch(/javascript/);
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+});

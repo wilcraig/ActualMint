@@ -208,7 +208,7 @@
         {/each}
         <li class="balances-legend-item">
           <span class="balances-legend-swatch balances-legend-swatch--net-worth"></span>
-          <span class="balances-legend-label">Net worth</span>
+          <span class="balances-legend-label">Total</span>
         </li>
       </ul>
     {/if}

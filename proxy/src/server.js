@@ -128,8 +128,46 @@ function proxyTo(origin, rewriteHtml, req, res, staticDir) {
   req.pipe(upstreamReq);
 }
 
+// Actual's own web client registers a Workbox precaching service worker at
+// `/sw.js` that caches the app shell (including the HTML document our own
+// <script>/<link> tags get injected into) in the browser's Cache Storage --
+// independent of, and not governed by, any HTTP Cache-Control header either
+// side sends. That's the real cause of "only the pacing bars / only shows
+// raw text unless I hard-reload and clear cache": the browser keeps serving
+// a precached HTML page whose injected script tag points at an old
+// bundle.js, no matter how aggressively that bundle.js URL itself is
+// cache-busted (see buildInjectedTags above, which only helps once a fresh
+// HTML page actually reaches the browser).
+//
+// Fix: serve a replacement service worker at that same URL that does the
+// well-established "kill switch" dance -- skipWaiting() to activate
+// immediately (not waiting for every other tab to close first), delete
+// every Cache Storage entry the real precaching worker left behind,
+// unregister itself so no service worker controls the page going forward
+// (falling back to plain HTTP semantics, which this proxy's injected
+// `cache-control: no-store` on HTML responses already governs correctly),
+// and reload any currently-open tabs so the fix takes effect without the
+// user needing to manually hard-reload.
+const SERVICE_WORKER_KILL_SWITCH = `
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const client of clients) client.navigate(client.url);
+  })());
+});
+`;
+
 function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN, staticDir = STATIC_DIR } = {}) {
   const app = express();
+
+  app.get('/sw.js', (req, res) => {
+    res.set({ 'content-type': 'application/javascript', 'cache-control': 'no-store' });
+    res.send(SERVICE_WORKER_KILL_SWITCH);
+  });
 
   app.use(ACTUALMINT_BUNDLE_PATH, express.static(staticDir));
   // Anything under the bundle prefix that static did not serve is a 404, not a proxied abt request.
