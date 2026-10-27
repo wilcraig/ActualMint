@@ -102,6 +102,11 @@ export function buildPacingRows(items, categories) {
         name: item.title,
         spent: members.reduce((sum, c) => sum + c.spent, 0),
         budgeted: members.reduce((sum, c) => sum + effectiveBudget(c), 0),
+        // The resolved member category ids actually present this month (a
+        // listed id absent from the API response -- e.g. deleted -- is
+        // already excluded from `members` above), for the breakdown modal
+        // to drill into.
+        memberIds: members.map((c) => c.id),
       });
     }
   }

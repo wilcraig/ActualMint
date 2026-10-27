@@ -63,12 +63,14 @@ describe('buildPacingRows', () => {
   test('a rollup sums spent and rollover-aware budgeted across its member categories', () => {
     const rows = buildPacingRows([{ title: 'Elizabeth Personal Care', budgets: ['catA', 'catB', 'catC'] }], CATEGORIES);
     // spent: 4000+1000+500=5500; budgeted (balance+spent per member): (6000+4000)+(-1000+1000)+(500+500)=10000+0+1000=11000
-    expect(rows).toEqual([{ kind: 'rollup', id: 'rollup:Elizabeth Personal Care', name: 'Elizabeth Personal Care', spent: 5500, budgeted: 11000 }]);
+    expect(rows).toEqual([
+      { kind: 'rollup', id: 'rollup:Elizabeth Personal Care', name: 'Elizabeth Personal Care', spent: 5500, budgeted: 11000, memberIds: ['catA', 'catB', 'catC'] },
+    ]);
   });
 
-  test('a rollup with some members missing from the API response sums only the present ones', () => {
+  test('a rollup with some members missing from the API response sums only the present ones, and memberIds reflects only those', () => {
     const rows = buildPacingRows([{ title: 'Partial', budgets: ['catA', 'does-not-exist'] }], CATEGORIES);
-    expect(rows).toEqual([{ kind: 'rollup', id: 'rollup:Partial', name: 'Partial', spent: 4000, budgeted: 10000 }]);
+    expect(rows).toEqual([{ kind: 'rollup', id: 'rollup:Partial', name: 'Partial', spent: 4000, budgeted: 10000, memberIds: ['catA'] }]);
   });
 
   test('a rollup with no resolvable members is omitted rather than shown as an empty bar', () => {

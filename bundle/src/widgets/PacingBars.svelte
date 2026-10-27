@@ -40,6 +40,22 @@
     });
   }
 
+  function openRollupBreakdown(row) {
+    if (modalInstance) {
+      unmount(modalInstance);
+      modalInstance = null;
+    }
+
+    modalInstance = mount(CategoryBreakdownModal, {
+      target: document.body,
+      props: {
+        categoryIds: row.memberIds,
+        rollupTitle: row.name,
+        onClose: closeBreakdown,
+      },
+    });
+  }
+
   function closeBreakdown() {
     if (modalInstance) {
       unmount(modalInstance);
@@ -88,10 +104,9 @@
   }
 </script>
 
-<!-- Shared bar markup for both a clickable single-category row and a
-     non-clickable rollup row (a rollup has no single category to drill
-     into, so CategoryBreakdownModal -- which takes exactly one categoryId
-     -- doesn't apply to it). -->
+<!-- Shared bar markup for both row kinds -- a single-category row opens
+     the modal scoped to that one category, a rollup row opens it scoped
+     to the rollup's whole member-category list (see openRollupBreakdown). -->
 {#snippet barContent(row)}
   <div class="pacing-row-header">
     <span class="pacing-name">{row.name}</span>
@@ -122,9 +137,9 @@
           {@render barContent(row)}
         </button>
       {:else}
-        <div class="pacing-row pacing-row--rollup">
+        <button type="button" class="pacing-row pacing-row--rollup" onclick={() => openRollupBreakdown(row)}>
           {@render barContent(row)}
-        </div>
+        </button>
       {/if}
     {/each}
   {/if}
@@ -164,13 +179,6 @@
     color: inherit;
     text-align: inherit;
     cursor: pointer;
-  }
-
-  /* A rollup row has no single category to drill into, so it's a plain
-     <div> rather than a <button> -- undo the pointer cursor .pacing-row
-     sets for the (button-only) single-category case. */
-  .pacing-row--rollup {
-    cursor: default;
   }
 
   .pacing-row-header {

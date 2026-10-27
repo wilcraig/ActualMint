@@ -105,7 +105,7 @@ test('level=categories requires groupId (400 without it)', async () => {
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=categories`, { headers: AUTH_HEADERS });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'groupId is required for level=categories' });
+    expect(await res.json()).toEqual({ error: 'level=categories requires exactly one of groupId or categoryIds' });
   });
 });
 
@@ -121,7 +121,101 @@ test('level=categories 400s when groupId is not a plain string (Express query-pa
       headers: AUTH_HEADERS,
     });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'groupId is required for level=categories' });
+    expect(await res.json()).toEqual({ error: 'level=categories requires exactly one of groupId or categoryIds' });
+  });
+});
+
+test('level=groups with groupIds restricts the breakdown to exactly that list of groups', async () => {
+  const client = stubClient({
+    transactions: [
+      { groupId: 'group1', amountCents: -4000 },
+      { groupId: 'group2', amountCents: -1500 },
+    ],
+    category_groups: [
+      { id: 'group1', name: 'Everyday Expenses', is_income: false },
+      { id: 'group2', name: 'Travel', is_income: false },
+    ],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=groups&groupIds=group1,group2`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(200);
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      {
+        date: { $gte: '2026-11-01', $lte: '2026-11-30' },
+        tombstone: false,
+        'category.group.is_income': false,
+        'category.group': { $oneof: ['group1', 'group2'] },
+      },
+    ]);
+  });
+});
+
+test('level=groups with no groupIds still means every expense group, unchanged from before', async () => {
+  const client = stubClient({
+    transactions: [{ groupId: 'group1', amountCents: -4000 }],
+    category_groups: [{ id: 'group1', name: 'Everyday Expenses', is_income: false }],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    await fetch(`${base}/api/spending-breakdown?month=2026-11&level=groups`, { headers: AUTH_HEADERS });
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group.is_income': false },
+    ]);
+  });
+});
+
+test('level=categories with categoryIds restricts to exactly that arbitrary list, regardless of real group membership', async () => {
+  const client = stubClient({
+    transactions: [
+      { categoryId: 'catA', amountCents: -2500 },
+      { categoryId: 'catB', amountCents: -750 },
+    ],
+    categories: [
+      { id: 'catA', name: 'Hair' },
+      { id: 'catB', name: 'Spa' },
+    ],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=categories&categoryIds=catA,catB`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({
+      total: 3250,
+      slices: [
+        { id: 'catA', label: 'Hair', amountCents: 2500 },
+        { id: 'catB', label: 'Spa', amountCents: 750 },
+      ],
+    });
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: { $oneof: ['catA', 'catB'] } },
+    ]);
+    expect(serialized.groupExpressions).toEqual(['category']);
+  });
+});
+
+test('level=categories 400s when given both groupId and categoryIds (ambiguous)', async () => {
+  getActualClient.mockResolvedValue(stubClient({}));
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=categories&groupId=group1&categoryIds=catA`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'level=categories requires exactly one of groupId or categoryIds' });
   });
 });
 
@@ -213,6 +307,70 @@ test('level=payees aggregates spending by payee within the given category', asyn
     ]);
     expect(serialized.groupExpressions).toEqual(['payee']);
     expect(serialized.selectExpressions).toEqual([{ payeeId: 'payee' }, { amountCents: { $sum: '$amount' } }]);
+  });
+});
+
+test('level=transactions returns individual transaction line items for a (categoryId, payeeId) pair, newest first', async () => {
+  const client = stubClient({
+    transactions: [
+      { id: 't1', date: '2026-11-05', amount: -2500, notes: null, imported_payee: 'TRADER JOES #123' },
+      { id: 't2', date: '2026-11-20', amount: -1500, notes: 'weekly groceries', imported_payee: 'Trader Joes' },
+    ],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=transactions&categoryId=catA&payeeId=payeeA`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({
+      transactions: [
+        { id: 't2', date: '2026-11-20', amountCents: 1500, notes: 'weekly groceries', importedPayee: 'Trader Joes' },
+        { id: 't1', date: '2026-11-05', amountCents: 2500, notes: null, importedPayee: 'TRADER JOES #123' },
+      ],
+    });
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA', payee: 'payeeA' },
+    ]);
+  });
+});
+
+test('level=transactions with payeeId=__none__ filters to the no-payee bucket (payee: null)', async () => {
+  const client = stubClient({
+    transactions: [{ id: 't1', date: '2026-11-01', amount: -500, notes: null, imported_payee: null }],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=transactions&categoryId=catA&payeeId=__none__`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(res.status).toBe(200);
+
+    const serialized = serializedQueryFor(client, 'transactions');
+    expect(serialized.filterExpressions).toEqual([
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA', payee: null },
+    ]);
+  });
+});
+
+test('level=transactions requires both categoryId and payeeId', async () => {
+  getActualClient.mockResolvedValue(stubClient({}));
+
+  await withServer(async (base) => {
+    const missingPayee = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=transactions&categoryId=catA`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(missingPayee.status).toBe(400);
+
+    const missingCategory = await fetch(`${base}/api/spending-breakdown?month=2026-11&level=transactions&payeeId=payeeA`, {
+      headers: AUTH_HEADERS,
+    });
+    expect(missingCategory.status).toBe(400);
   });
 });
 
