@@ -8,6 +8,11 @@ import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import { mountPanel } from './widget-builder/mount-panel';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import TextScaleControl from './widgets/TextScaleControl.svelte';
+import { fixBudgetIconCrop } from './budget-icon-fix';
+
+// Pure CSS, no DOM dependency beyond `document.head` -- safe to run
+// unconditionally on every page load, independent of sessionStorage.
+fixBudgetIconCrop(document);
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
