@@ -53,8 +53,17 @@ export function saveScale(storage, px) {
 // <style> element (created once, updated in place on later calls) rather
 // than writing to html.style directly, so this plays nicely alongside any
 // other inline styles already on <html> and is trivial to find/remove.
-// `!important` guards against Actual's own `html { font-size: 13px }` rule
-// winning on load order/specificity.
+// `!important` guards against Actual's own base rule winning on load
+// order/specificity.
+//
+// Actual's own base stylesheet sets `html, body { font-size: 13px; }` --
+// one compound rule giving BOTH elements their own independent 13px value,
+// not `body` inheriting/recomputing from `html`. Nearly all of Actual's
+// native UI text (budget table, transaction register, etc.) inherits from
+// `body`, not from `html` via `rem`. Overriding only `html` therefore left
+// all of that native text stuck at 13px -- only ActualMint's own
+// rem-sized widgets picked up the change. Both elements must be
+// overridden together, mirroring Actual's own rule shape.
 export function applyScale(doc, px) {
   let styleEl = doc.getElementById(STYLE_ELEMENT_ID);
   if (!styleEl) {
@@ -62,7 +71,7 @@ export function applyScale(doc, px) {
     styleEl.id = STYLE_ELEMENT_ID;
     doc.head.appendChild(styleEl);
   }
-  styleEl.textContent = `html { font-size: ${px}px !important; }`;
+  styleEl.textContent = `html, body { font-size: ${px}px !important; }`;
 }
 
 // The next preset after whichever one's px is closest to `currentPx`,

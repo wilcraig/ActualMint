@@ -56,6 +56,16 @@ test('applyScale creates a style element setting html font-size', () => {
   expect(styleEl.textContent).toContain('!important');
 });
 
+test('applyScale also overrides body font-size, not just html', () => {
+  // Actual's own base stylesheet sets `html, body { font-size: 13px; }` as
+  // one compound rule -- body does not inherit/recompute from html, so an
+  // html-only override leaves all of Actual's native UI text unaffected.
+  document.head.innerHTML = '';
+  applyScale(document, 19);
+  const styleEl = document.getElementById('actualmint-text-scale');
+  expect(styleEl.textContent).toMatch(/\bbody\b/);
+});
+
 test('applyScale updates the existing style element in place rather than creating a second one', () => {
   document.head.innerHTML = '';
   applyScale(document, 16);
