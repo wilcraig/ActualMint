@@ -4,6 +4,8 @@ import PacingBars from './widgets/PacingBars.svelte';
 import MonthEndNet from './widgets/MonthEndNet.svelte';
 import PaycheckAlertBanner from './widgets/PaycheckAlertBanner.svelte';
 import BillsTimeline from './widgets/BillsTimeline.svelte';
+import { mountPanel } from './widget-builder/mount-panel';
+import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 
 try {
   maybeRedirectToReports(window.location, window.sessionStorage);
@@ -45,3 +47,7 @@ mountWidget('{{ACTUALMINT:paycheck-alerts:', (host) => {
 mountWidget('{{ACTUALMINT:bills-timeline:', (host) => {
   new BillsTimeline({ target: host });
 });
+
+// Panel mounting has no dependency on sessionStorage, so it stays outside
+// the try/catch above.
+mountPanel(document, WidgetBuilderPanel);

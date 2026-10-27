@@ -12,6 +12,8 @@ vi.mock('../src/redirect', () => ({
   }),
 }));
 vi.mock('../src/widgets/PacingBars.svelte', () => ({ default: class {} }));
+vi.mock('../src/widget-builder/mount-panel', () => ({ mountPanel: vi.fn() }));
+vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
 
 test('mountWidget still runs when accessing sessionStorage throws', async () => {
   const { mountWidget } = await import('../src/mount');
@@ -19,4 +21,18 @@ test('mountWidget still runs when accessing sessionStorage throws', async () => 
   await import('../src/index.js');
 
   expect(mountWidget).toHaveBeenCalled();
+});
+
+test('mountPanel is called to mount the widget-builder panel', async () => {
+  // Without this, '../src/index.js' would resolve from the module cache
+  // populated by the previous test's import, so this test's own import
+  // wouldn't actually re-run index.js - the assertion would only pass
+  // because the earlier test had already called mountPanel.
+  vi.resetModules();
+
+  const { mountPanel } = await import('../src/widget-builder/mount-panel');
+
+  await import('../src/index.js');
+
+  expect(mountPanel).toHaveBeenCalled();
 });
