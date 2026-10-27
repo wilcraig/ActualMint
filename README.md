@@ -38,9 +38,12 @@ Actual ships a new release.
   widget above (pick the type, check off categories or accounts, copy the
   result), so you never hand-write one.
 - **Mint-style theme** — a one-click re-skin of Actual's own color palette
-  (Budget, Transactions, and Reports alike) into a teal-and-cream look
-  reminiscent of Mint.com, for the muscle memory of anyone who used it.
-  Persisted per-browser in `localStorage`, same as the text-size control.
+  (Budget, Transactions, and Reports alike) into a light, airy
+  teal-and-white look reminiscent of Mint.com, for the muscle memory of
+  anyone who used it. Persisted per-browser in `localStorage`, same as the
+  text-size control. Pick Actual's own **Light** theme first (Settings →
+  Themes → Theme) — the recolor assumes a light background, so pairing it
+  with Actual's Dark or Midnight theme looks muddy instead of airy.
 - **Global text-size control** — a persistent "Aa" control that bumps the
   size of the *entire* app (budget tables, transaction registers, reports,
   schedules — not just ActualMint's own widgets) for a browser/device that
