@@ -8,6 +8,7 @@ import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import { mountPanel } from './widget-builder/mount-panel';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import TextScaleControl from './widgets/TextScaleControl.svelte';
+import MintThemeControl from './widgets/MintThemeControl.svelte';
 import { fixBudgetIconCrop } from './budget-icon-fix';
 
 // Pure CSS, no DOM dependency beyond `document.head` -- safe to run
@@ -74,3 +75,7 @@ mountPanel(document, WidgetBuilderPanel);
 // (Budget and Schedules pages included, not just /reports*) -- it mounts on
 // every page load, independent of sessionStorage.
 mountPanel(document, TextScaleControl);
+
+// Same reasoning as TextScaleControl: the Mint-style theme recolors Budget
+// and Transaction pages too, not just Reports, so it mounts everywhere.
+mountPanel(document, MintThemeControl);

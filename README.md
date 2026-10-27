@@ -7,7 +7,7 @@ timeline, account balance history, and a global text-size control — all
 injected into Actual's own Reports page and native UI, with zero changes to
 Actual itself.
 
-![Budget page](docs/screenshots/budget.jpg)
+![A tall budget-pacing-bars widget next to its category drill-down donut and an account-balances chart, in the Mint-style theme](docs/screenshots/pacing-bars-drilldown.jpg)
 
 ## Why
 
@@ -34,23 +34,27 @@ Actual ships a new release.
   over a selectable date range.
 - **Category/payee drill-down** — click into a pacing bar to see a donut
   breakdown of categories → payees → transactions.
-- **Widget builder** — a floating panel (bottom-right on the Reports page)
-  that generates the exact placeholder string for any widget above, so you
-  never hand-write one.
+- **Widget builder** — generates the exact placeholder string for any
+  widget above (pick the type, check off categories or accounts, copy the
+  result), so you never hand-write one.
+- **Mint-style theme** — a one-click re-skin of Actual's own color palette
+  (Budget, Transactions, and Reports alike) into a teal-and-cream look
+  reminiscent of Mint.com, for the muscle memory of anyone who used it.
+  Persisted per-browser in `localStorage`, same as the text-size control.
 - **Global text-size control** — a persistent "Aa" control that bumps the
   size of the *entire* app (budget tables, transaction registers, reports,
   schedules — not just ActualMint's own widgets) for a browser/device that
   needs bigger text. Persisted per-browser in `localStorage`.
-- Both floating controls reposition themselves above Actual's own mobile
-  bottom navigation bar, so neither ever overlaps it.
+- All of the floating controls reposition themselves above Actual's own
+  mobile bottom navigation bar, so none of them ever overlaps it.
 
 | Reports widgets | Text size control |
 | --- | --- |
 | ![Reports page with pacing bars, projected net, and an account balance chart](docs/screenshots/reports-widgets.jpg) | ![Transaction register at the Large text-size preset](docs/screenshots/text-scale-large.jpg) |
 
-| Mobile |
-| --- |
-| ![Aa and Widget builder buttons sitting clear of Actual's native mobile nav bar](docs/screenshots/mobile-nav.jpg) |
+| Widget builder | Mobile |
+| --- | --- |
+| ![Widget builder panel: pick a widget type, check off categories, copy the generated placeholder](docs/screenshots/widget-builder.jpg) | ![Aa and Widget builder buttons sitting clear of Actual's native mobile nav bar](docs/screenshots/mobile-nav.jpg) |
 
 ## Architecture
 
