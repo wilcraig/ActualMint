@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
@@ -22,10 +23,11 @@ async function readGoals(dataDir = DATA_DIR) {
 
 // Writes the whole list to a temp file, then renames it over goals.json.
 // rename() is atomic on the same filesystem, so readers never see a
-// half-written file.
+// half-written file. Each call gets its own temp name, so overlapping calls
+// never share a file: whichever rename lands last wins outright.
 async function writeGoals(goals, dataDir = DATA_DIR) {
   const finalPath = path.join(dataDir, FILE_NAME);
-  const tmpPath = `${finalPath}.tmp`;
+  const tmpPath = `${finalPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await fs.writeFile(tmpPath, JSON.stringify(goals));
   await fs.rename(tmpPath, finalPath);
 }
