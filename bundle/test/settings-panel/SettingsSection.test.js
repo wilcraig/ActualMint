@@ -65,3 +65,26 @@ test('toggling the Mint-theme checkbox applies and persists the choice', async (
   expect(document.getElementById('actualmint-mint-theme')).toBeNull();
   expect(window.localStorage.getItem('actualmint-mint-theme-enabled')).toBe('false');
 });
+
+test('defaults to expanded, and clicking the header toggle hides/shows the settings content', async () => {
+  new SettingsSection({ target: document.getElementById('host') });
+  await Promise.resolve();
+
+  const toggle = document.querySelector('.section-toggle');
+  expect(toggle).not.toBeNull();
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(document.getElementById('actualmint-text-size-select')).not.toBeNull();
+
+  toggle.click();
+  await Promise.resolve();
+
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(document.getElementById('actualmint-text-size-select')).toBeNull();
+  expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+
+  toggle.click();
+  await Promise.resolve();
+
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(document.getElementById('actualmint-text-size-select')).not.toBeNull();
+});

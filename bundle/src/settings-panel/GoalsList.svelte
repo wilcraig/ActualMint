@@ -246,8 +246,8 @@
   }
 </script>
 
-<div class="actualmint-goals-list">
-  <strong>Savings goals</strong>
+<div class="actualmint-goals-list settings-subgroup">
+  <h4 class="group-label">Savings goals</h4>
 
   {#if loadErrorMessage}
     <p class="goals-load-error" role="alert">{loadErrorMessage}</p>
@@ -259,8 +259,8 @@
     {:else}
       <ul class="goals-rows">
         {#each goals as goal (goal.id)}
-          <li class="goal-row">
-            <span class="goal-entity-name">{entityName(goal.entityType, goal.entityId)}</span>
+          <li class="goal-row setting-row">
+            <span class="goal-entity-name setting-label">{entityName(goal.entityType, goal.entityId)}</span>
             <input
               class="goal-amount-input"
               type="number"
@@ -286,7 +286,7 @@
       </ul>
     {/if}
 
-    <div class="goal-new-row">
+    <div class="goal-new-row setting-row">
       <select
         class="goal-new-type-select"
         value={newEntityType}
