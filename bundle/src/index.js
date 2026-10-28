@@ -8,6 +8,7 @@ import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import UnlinkedTransfers from './widgets/UnlinkedTransfers.svelte';
 import SpendingBreakdownDonut from './widgets/SpendingBreakdownDonut.svelte';
 import SavingsGoalsThermometers from './widgets/SavingsGoalsThermometers.svelte';
+import BurnRateChart from './widgets/BurnRateChart.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -126,6 +127,17 @@ mountWidget('{{ACTUALMINT:spending-breakdown-donut:', (host, groupIds) => {
 //   {{ACTUALMINT:savings-goals-thermometers:["categoryId1","categoryId2"]}}
 mountWidget('{{ACTUALMINT:savings-goals-thermometers:', (host, categoryIds) => {
   new SavingsGoalsThermometers({ target: host, props: { categoryIds } });
+});
+
+// BurnRateChart takes no config (mount.js still requires the placeholder's
+// body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:burn-rate:}}` fails to parse and the widget never mounts).
+// Zero-config, current-month only (no month picker in v1), same posture as
+// month-end-net. To add this widget, type the following literal text into
+// an Actual Reports "Text widget":
+//   {{ACTUALMINT:burn-rate:null}}
+mountWidget('{{ACTUALMINT:burn-rate:', (host) => {
+  new BurnRateChart({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

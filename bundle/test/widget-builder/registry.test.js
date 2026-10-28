@@ -21,5 +21,6 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     { id: 'savings-goals-thermometers', label: 'Sinking fund goals (thermometers)', fields: [
       { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
     ] },
+    { id: 'burn-rate', label: 'Cumulative burn rate (pacing slope)', fields: [] },
   ]);
 });

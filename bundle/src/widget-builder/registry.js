@@ -57,4 +57,9 @@ export const WIDGET_REGISTRY = [
       { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
     ],
   },
+  {
+    id: 'burn-rate',
+    label: 'Cumulative burn rate (pacing slope)',
+    fields: [],
+  },
 ];
