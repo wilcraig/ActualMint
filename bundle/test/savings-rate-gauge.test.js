@@ -98,6 +98,37 @@ test("colors along red/amber/green by rate (exact thresholds are this task's own
   expect(red).not.toBe(green);
 });
 
+test('fill geometry clamps to [0, 1] while the displayed percentage shows the raw rate', async () => {
+  async function renderRate(rate) {
+    fetchApi.mockResolvedValue(
+      jsonResponse({ incomeCents: 100000, outflowCents: 0, investmentCents: 0, rate })
+    );
+    const target = mountWidget();
+    await flush();
+    return {
+      arcD: target.querySelector('.gauge-fill-arc').getAttribute('d'),
+      pctLabel: target.querySelector('.gauge-pct-label').textContent,
+    };
+  }
+
+  const belowRange = await renderRate(-0.1);
+  const atZero = await renderRate(0);
+  const aboveRange = await renderRate(1.4);
+  const atFull = await renderRate(1.0);
+
+  // A negative rate's fill arc must be geometrically identical to a 0%
+  // arc (clamped), not swept backwards past the semicircle's start.
+  expect(belowRange.arcD).toBe(atZero.arcD);
+  // A >100% rate's fill arc must be geometrically identical to a 100%
+  // arc (clamped), not swept past the semicircle's end.
+  expect(aboveRange.arcD).toBe(atFull.arcD);
+
+  // The displayed percentage is never clamped -- it always reflects the
+  // raw rate, even when the visual fill is capped at the ends.
+  expect(belowRange.pctLabel).toBe('-10%');
+  expect(aboveRange.pctLabel).toBe('140%');
+});
+
 test('renders the inline error treatment on a non-ok response', async () => {
   fetchApi.mockResolvedValue(jsonResponse(null, false, 500));
 
