@@ -84,6 +84,11 @@ export const WIDGET_REGISTRY = [
     fields: [],
   },
   {
+    id: 'spending-treemap',
+    label: 'Spending treemap',
+    fields: [],
+  },
+  {
     id: 'spending-heatmap',
     label: 'Spending intensity calendar heatmap',
     fields: [

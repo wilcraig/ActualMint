@@ -12,6 +12,7 @@ import BurnRateChart from './widgets/BurnRateChart.svelte';
 import SpendingHeatmap from './widgets/SpendingHeatmap.svelte';
 import SavingsRateGauge from './widgets/SavingsRateGauge.svelte';
 import SpendingSankey from './widgets/SpendingSankey.svelte';
+import SpendingTreemap from './widgets/SpendingTreemap.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -181,6 +182,17 @@ mountWidget('{{ACTUALMINT:savings-rate-gauge:', (host, investmentGroupIds) => {
 //   {{ACTUALMINT:spending-sankey:null}}
 mountWidget('{{ACTUALMINT:spending-sankey:', (host) => {
   new SpendingSankey({ target: host });
+});
+
+// SpendingTreemap takes no config (mount.js still requires the placeholder's
+// body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:spending-treemap:}}` fails to parse and the widget never
+// mounts). Zero-config, current-month only, Group -> Category drill-down --
+// same posture as spending-sankey. To add this widget, type the following
+// literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:spending-treemap:null}}
+mountWidget('{{ACTUALMINT:spending-treemap:', (host) => {
+  new SpendingTreemap({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

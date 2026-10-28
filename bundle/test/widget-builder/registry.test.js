@@ -26,6 +26,7 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
       { key: 'investmentGroupIds', type: 'group-multiselect', label: 'Count as savings (not spending)', optional: true },
     ] },
     { id: 'spending-sankey', label: 'Monthly Sankey (Income → Group → Category)', fields: [] },
+    { id: 'spending-treemap', label: 'Spending treemap', fields: [] },
     { id: 'spending-heatmap', label: 'Spending intensity calendar heatmap', fields: [
       { key: 'range', type: 'select', label: 'Range', options: [
         { value: 'month', label: 'Last 30 days' },
