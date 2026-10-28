@@ -10,6 +10,7 @@ import SpendingBreakdownDonut from './widgets/SpendingBreakdownDonut.svelte';
 import SavingsGoalsThermometers from './widgets/SavingsGoalsThermometers.svelte';
 import BurnRateChart from './widgets/BurnRateChart.svelte';
 import SpendingHeatmap from './widgets/SpendingHeatmap.svelte';
+import SavingsRateGauge from './widgets/SavingsRateGauge.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -152,6 +153,19 @@ mountWidget('{{ACTUALMINT:burn-rate:', (host) => {
 mountWidget('{{ACTUALMINT:spending-heatmap:', (host, config) => {
   const range = config?.range ?? 'month';
   new SpendingHeatmap({ target: host, props: { range } });
+});
+
+// SavingsRateGauge's config is a bare array of category-group ids to count
+// as savings rather than spending (empty or omitted means none), same
+// convention as pacing-bars' categoryIds and savings-goals-thermometers'
+// categoryIds. To show the gauge with no investment groups configured,
+// type the following literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:savings-rate-gauge:[]}}
+// or to count specific category groups (e.g. a brokerage-transfer group)
+// as savings:
+//   {{ACTUALMINT:savings-rate-gauge:["groupId1","groupId2"]}}
+mountWidget('{{ACTUALMINT:savings-rate-gauge:', (host, investmentGroupIds) => {
+  new SavingsRateGauge({ target: host, props: { investmentGroupIds: investmentGroupIds ?? [] } });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

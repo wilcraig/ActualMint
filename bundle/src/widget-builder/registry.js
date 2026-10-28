@@ -63,6 +63,13 @@ export const WIDGET_REGISTRY = [
     fields: [],
   },
   {
+    id: 'savings-rate-gauge',
+    label: 'Net savings rate gauge',
+    fields: [
+      { key: 'investmentGroupIds', type: 'group-multiselect', label: 'Count as savings (not spending)' },
+    ],
+  },
+  {
     id: 'spending-heatmap',
     label: 'Spending intensity calendar heatmap',
     fields: [
