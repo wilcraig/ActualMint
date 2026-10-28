@@ -38,8 +38,15 @@ router.get('/', async (req, res, next) => {
     // just created in Actual should show up without waiting that long.
     await syncIfDue(client);
     const categoryGroups = await client.getCategoryGroups();
-    const budgetMonth = await client.getBudgetMonth(currentMonth());
-    const carryoverById = indexCarryoverById(budgetMonth);
+    // Carryover is a best-effort extra: if the budget fetch fails, the picker
+    // still gets every category, all reading carryoverEnabled: false.
+    let carryoverById = new Map();
+    try {
+      const budgetMonth = await client.getBudgetMonth(currentMonth());
+      carryoverById = indexCarryoverById(budgetMonth);
+    } catch (budgetErr) {
+      console.warn('categories: getBudgetMonth failed, defaulting carryoverEnabled to false', budgetErr);
+    }
 
     const categories = [];
     for (const group of categoryGroups || []) {

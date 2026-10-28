@@ -111,3 +111,34 @@ test('401s with no token', async () => {
     expect(validateToken).not.toHaveBeenCalled();
   });
 });
+
+test('still 200s with every category carryoverEnabled: false when getBudgetMonth throws', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  getActualClient.mockResolvedValue({
+    getCategoryGroups: jest.fn(async () => [
+      {
+        id: 'group1', name: 'Everyday Expenses', hidden: false,
+        categories: [
+          { id: 'catA', name: 'Groceries', hidden: false, group_id: 'group1' },
+          { id: 'catB', name: 'Dining', hidden: false, group_id: 'group1' },
+        ],
+      },
+    ]),
+    getBudgetMonth: jest.fn(async () => {
+      throw new Error('budget unavailable');
+    }),
+  });
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/categories`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      categories: [
+        { id: 'catA', name: 'Groceries', groupName: 'Everyday Expenses', carryoverEnabled: false },
+        { id: 'catB', name: 'Dining', groupName: 'Everyday Expenses', carryoverEnabled: false },
+      ],
+    });
+  });
+  expect(warn).toHaveBeenCalled();
+  warn.mockRestore();
+});
