@@ -18,5 +18,8 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     ] },
     { id: 'unlinked-transfers', label: 'Unlinked transfers (possible double-counted income/expense)', fields: [] },
     { id: 'spending-breakdown-donut', label: 'Spending breakdown donut', fields: [] },
+    { id: 'savings-goals-thermometers', label: 'Sinking fund goals (thermometers)', fields: [
+      { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
+    ] },
   ]);
 });

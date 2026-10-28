@@ -7,6 +7,7 @@ import BillsTimeline from './widgets/BillsTimeline.svelte';
 import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import UnlinkedTransfers from './widgets/UnlinkedTransfers.svelte';
 import SpendingBreakdownDonut from './widgets/SpendingBreakdownDonut.svelte';
+import SavingsGoalsThermometers from './widgets/SavingsGoalsThermometers.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -114,6 +115,17 @@ mountWidget('{{ACTUALMINT:unlinked-transfers:', (host) => {
 //   {{ACTUALMINT:spending-breakdown-donut:["groupId1","groupId2"]}}
 mountWidget('{{ACTUALMINT:spending-breakdown-donut:', (host, groupIds) => {
   new SpendingBreakdownDonut({ target: host, props: { groupIds } });
+});
+
+// SavingsGoalsThermometers' config is a bare array of category ids to show
+// (empty or omitted means every goal-tracked category), same convention as
+// pacing-bars' categoryIds. To show every goal-tracked category, type the
+// following literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:savings-goals-thermometers:[]}}
+// or to show only specific categories:
+//   {{ACTUALMINT:savings-goals-thermometers:["categoryId1","categoryId2"]}}
+mountWidget('{{ACTUALMINT:savings-goals-thermometers:', (host, categoryIds) => {
+  new SavingsGoalsThermometers({ target: host, props: { categoryIds } });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

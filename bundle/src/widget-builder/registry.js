@@ -50,4 +50,11 @@ export const WIDGET_REGISTRY = [
     label: 'Spending breakdown donut',
     fields: [],
   },
+  {
+    id: 'savings-goals-thermometers',
+    label: 'Sinking fund goals (thermometers)',
+    fields: [
+      { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
+    ],
+  },
 ];
