@@ -14,10 +14,6 @@ const goalsRouter = require('./routes/goals');
 
 const app = express();
 
-// No route needed a request body until goals' PUT; every /api/* route gets
-// this for free, same as requireAuth below.
-app.use(express.json());
-
 // Actual's own client sends its session token as `X-ACTUAL-TOKEN` (see
 // auth.js for the confirmed mechanism). Require a valid one on every
 // /api/* route so a later plan's new routes are covered automatically
@@ -32,6 +28,13 @@ async function requireAuth(req, res, next) {
 }
 
 app.use('/api', requireAuth);
+
+// Registered after requireAuth so a malformed-JSON body from an
+// unauthenticated caller gets a clean 401 instead of Express's default
+// 400 HTML error page (body parsing would throw before auth ever ran).
+// Still a blanket /api/* concern -- no need to scope it to just the goals
+// router.
+app.use(express.json());
 app.use('/api/bills-timeline', billsTimelineRouter);
 app.use('/api/budget-pacing', budgetPacingRouter);
 app.use('/api/month-end-projection', monthEndProjectionRouter);

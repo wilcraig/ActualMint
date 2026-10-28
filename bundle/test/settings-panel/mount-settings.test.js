@@ -94,6 +94,38 @@ test('keeps watching (no arbitrary timeout) until the Themes card appears, then 
   expect(container.previousElementSibling).toBe(themesCard);
 });
 
+test('dispatches actualmint:settings-attached on the document each time it attaches', () => {
+  renderThemesCard();
+  class FakeSection {
+    constructor() {}
+  }
+
+  // Other tests in this file (and other suites) call mountSettingsSection
+  // too, and watchRoute's history.pushState/replaceState patching is never
+  // torn down between tests, so pushState can also re-trigger earlier
+  // tests' own (now-detached) attach closures. That means the listener's
+  // absolute call count isn't reliable across the whole suite -- only that
+  // it increases by at least one per attach this test itself triggers.
+  const listener = vi.fn();
+  document.addEventListener('actualmint:settings-attached', listener);
+
+  mountSettingsSection(document, window, FakeSection);
+  const beforeFirstAttach = listener.mock.calls.length;
+
+  window.history.pushState({}, '', '/settings');
+  expect(listener.mock.calls.length).toBeGreaterThan(beforeFirstAttach);
+  const afterFirstAttach = listener.mock.calls.length;
+
+  // Navigating away and back re-attaches, and dispatches again -- this is
+  // what lets children (e.g. GoalsList) refetch on every real return to
+  // /settings, not just the first.
+  window.history.pushState({}, '', '/budget');
+  window.history.pushState({}, '', '/settings');
+  expect(listener.mock.calls.length).toBeGreaterThan(afterFirstAttach);
+
+  document.removeEventListener('actualmint:settings-attached', listener);
+});
+
 test('copies the Themes card\'s own border/background/padding onto the container', () => {
   const themesCard = renderThemesCard();
   themesCard.style.paddingTop = '15px';

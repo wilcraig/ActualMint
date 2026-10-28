@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { fetchApi } from '../api-client';
 
   // Each entry: { id, entityType, entityId, targetAmountCents, targetDate,
@@ -67,7 +68,19 @@
     }
   }
 
-  load();
+  // Re-runs the same initial fetch every time mount-settings.js actually
+  // (re)attaches this section next to a found settings anchor -- not just
+  // once at bundle load -- so the category picker and goal list refresh
+  // whenever the user lands on /settings, including returning to it after
+  // navigating away (e.g. after enabling carryover on a category
+  // elsewhere in Actual).
+  onMount(() => {
+    load();
+    document.addEventListener('actualmint:settings-attached', load);
+    return () => {
+      document.removeEventListener('actualmint:settings-attached', load);
+    };
+  });
 
   function formatCents(cents) {
     return (cents / 100).toFixed(2);
@@ -122,8 +135,11 @@
         return;
       }
 
-      goal.error = null;
-      goals = goals.map((g) => (g.id === goal.id ? goal : g));
+      // Only clear this row's error field on whatever the *current* row
+      // state is -- never replace the whole row with the `goal` object
+      // captured when this save started, which can revert a newer local
+      // edit made to the same row while this save was still in flight.
+      goals = goals.map((g) => (g.id === goal.id ? { ...g, error: null } : g));
     } catch {
       goal.error = 'Save failed: could not reach actualmint-api.';
       goals = goals.map((g) => (g.id === goal.id ? goal : g));

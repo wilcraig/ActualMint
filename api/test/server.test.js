@@ -17,6 +17,20 @@ async function withServer(fn) {
   }
 }
 
+test('malformed JSON body with no token returns 401, not a 400 JSON-parse error', async () => {
+  // express.json() is registered after requireAuth specifically so an
+  // unauthenticated caller never reaches body parsing at all -- confirms
+  // the ordering in server.js rather than just reading it.
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/goals/g1`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{not valid json',
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
 test('/health is 503 until the Actual client has connected once', async () => {
   const { getActualClient } = require('../src/actual-client');
 

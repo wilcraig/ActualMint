@@ -273,6 +273,38 @@ test('two concurrent PUTs: the second write wins, file is never left corrupt', a
   });
 });
 
+test('two concurrent PUTs for different goal ids: both survive', async () => {
+  // Unlike the same-id race above, this exercises the route's own
+  // serialization of its read-modify-write section: two PUTs for two
+  // *different* ids landing close together (ordinary single-tab use, e.g.
+  // editing two different goals in quick succession) must not each read
+  // the same stored list and clobber each other's write -- both goals
+  // must survive, even though both requests still return 200.
+  let stored = [];
+  readGoals.mockImplementation(async () => stored);
+  writeGoals.mockImplementation(async (goals) => {
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 20));
+    stored = goals;
+  });
+  getActualClient.mockResolvedValue(stubClient({ accounts: [{ id: 'accA', name: 'Checking' }] }));
+
+  await withServer(async (base) => {
+    const bodyA = { entityType: 'account', entityId: 'accA', targetAmountCents: 1000, targetDate: '2026-01-01' };
+    const bodyB = { entityType: 'account', entityId: 'accA', targetAmountCents: 2000, targetDate: '2026-02-01' };
+
+    const [resA, resB] = await Promise.all([
+      fetch(`${base}/api/goals/g1`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(bodyA) }),
+      fetch(`${base}/api/goals/g2`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(bodyB) }),
+    ]);
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+
+    expect(stored).toHaveLength(2);
+    expect(stored.find((g) => g.id === 'g1')?.targetAmountCents).toBe(1000);
+    expect(stored.find((g) => g.id === 'g2')?.targetAmountCents).toBe(2000);
+  });
+});
+
 test('DELETE /api/goals/:id removes it; 404 if the id does not exist', async () => {
   readGoals.mockResolvedValue([{ id: 'g1', entityType: 'account', entityId: 'accA', targetAmountCents: 100, targetDate: '2026-01-01' }]);
 

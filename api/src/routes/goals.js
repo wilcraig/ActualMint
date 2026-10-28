@@ -82,6 +82,26 @@ function validateGoalBody(body) {
   return null;
 }
 
+// In-process mutex serializing each PUT/DELETE's read-modify-write
+// section. Validation/entity-resolution work above (which needs the
+// Actual client and never touches the store) stays outside it -- only the
+// readGoals() -> mutate -> writeGoals() section is queued.
+//
+// Without this, two PUTs (or a PUT and a DELETE) landing close together --
+// ordinary single-tab use, e.g. editing two different goals in quick
+// succession -- can each read the same list, mutate their own copy, and
+// the second write silently clobbers the first's change. Both requests
+// still return success; the loss is invisible until a reload.
+let goalsQueue = Promise.resolve();
+function serialize(fn) {
+  const result = goalsQueue.then(fn, fn);
+  // Chain off this, not off `result` -- a rejected operation still clears
+  // the queue for the next one, but the caller (via the returned promise)
+  // still sees the real rejection.
+  goalsQueue = result.catch(() => {});
+  return result;
+}
+
 const router = express.Router();
 
 router.get('/', async (req, res, next) => {
@@ -127,22 +147,16 @@ router.put('/:id', async (req, res, next) => {
 
     const goal = { id: req.params.id, entityType, entityId, targetAmountCents, targetDate };
 
-    // Known limitation, accepted as a trade-off (single shared household
-    // user, no multi-user permissions in scope): this read-modify-write
-    // isn't atomic across *different* ids, so two truly concurrent PUTs for
-    // two different goals can race and one's update can be lost (the
-    // last writeGoals() to complete wins the whole file, same as the
-    // same-id case the route's own tests exercise -- just here it can
-    // clobber an unrelated goal's update instead of intentionally
-    // replacing it).
-    const goals = await readGoals();
-    const index = goals.findIndex((g) => g.id === goal.id);
-    if (index >= 0) {
-      goals[index] = goal;
-    } else {
-      goals.push(goal);
-    }
-    await writeGoals(goals);
+    await serialize(async () => {
+      const goals = await readGoals();
+      const index = goals.findIndex((g) => g.id === goal.id);
+      if (index >= 0) {
+        goals[index] = goal;
+      } else {
+        goals.push(goal);
+      }
+      await writeGoals(goals);
+    });
 
     res.status(200).json({ goal });
   } catch (err) {
@@ -152,13 +166,20 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    const goals = await readGoals();
-    const remaining = goals.filter((g) => g.id !== req.params.id);
-    if (remaining.length === goals.length) {
+    let found = false;
+    await serialize(async () => {
+      const goals = await readGoals();
+      const remaining = goals.filter((g) => g.id !== req.params.id);
+      found = remaining.length !== goals.length;
+      if (found) {
+        await writeGoals(remaining);
+      }
+    });
+
+    if (!found) {
       res.status(404).json({ error: 'goal not found' });
       return;
     }
-    await writeGoals(remaining);
     res.status(204).end();
   } catch (err) {
     next(err);

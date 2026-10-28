@@ -62,6 +62,15 @@ export function mountSettingsSection(doc, win, SettingsSectionComponent) {
     style.fontFamily = cardStyle.fontFamily;
     style.fontSize = cardStyle.fontSize;
     anchor.insertAdjacentElement('afterend', container);
+
+    // The component instance is created exactly once (see above) and its
+    // children (e.g. GoalsList) only fetch on their own initial mount, so
+    // without this they'd never refetch after the first time the bundle
+    // happened to load on /settings -- breaking workflows like "enable
+    // carryover on a category, then go add a goal for it" without a hard
+    // page reload. Dispatched every time we actually (re)attach next to a
+    // found anchor, so children can listen and refresh their own data.
+    doc.dispatchEvent(new win.CustomEvent('actualmint:settings-attached'));
   }
 
   function stopObserving() {

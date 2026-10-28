@@ -354,6 +354,37 @@ test('clearing an existing goal\'s date field shows an inline error and never PU
   expect(row.querySelector('.goal-row-error').textContent).toContain('Choose a target date');
 });
 
+test('refetches goals/categories/accounts when actualmint:settings-attached fires', async () => {
+  mockDefaultFetch({ goals: [] });
+
+  mountWidget();
+  await flush();
+  await flush();
+  await flush();
+
+  const initialCallCount = fetchApi.mock.calls.length;
+
+  mockDefaultFetch({
+    goals: [
+      {
+        id: 'goal-1',
+        entityType: 'category',
+        entityId: 'cat-vacation',
+        targetAmountCents: 250000,
+        targetDate: '2027-06-01',
+      },
+    ],
+  });
+
+  document.dispatchEvent(new Event('actualmint:settings-attached'));
+  await flush();
+  await flush();
+  await flush();
+
+  expect(fetchApi.mock.calls.length).toBeGreaterThan(initialCallCount);
+  expect(document.body.textContent).toContain('Vacation');
+});
+
 test('a goal referencing an unresolvable entityId shows the "(unknown category)"/"(unknown account)" fallback', async () => {
   mockDefaultFetch({
     goals: [
