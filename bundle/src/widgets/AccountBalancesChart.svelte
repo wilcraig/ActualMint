@@ -349,6 +349,7 @@
           y={layerLabelY(layer)}
           text-anchor="end"
           style:fill={labelColorFor(index)}
+          xml:space="preserve"
         >
           <tspan class="balances-area-name">{data.accounts[index].name}</tspan><tspan class="balances-area-label"
             >  {formatCents(layerOwnBalance(index))}</tspan
