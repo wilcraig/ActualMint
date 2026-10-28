@@ -192,15 +192,24 @@
     return points[points.length - 1].balanceCents;
   }
 
-  // The vertical center of the account-name + balance label pair drawn
-  // inside this band -- centered in the band's own height where there's
-  // room; clamped to stay inside the band (rather than centered) once the
-  // band gets thin, so the two-line label never spills into its neighbor.
+  // The vertical center of the one-line "name  balance" label drawn inside
+  // this band -- centered in the band's own height where there's room;
+  // clamped to stay inside the band (rather than centered) once the band
+  // gets thin, so the label never spills into its neighbor.
   function layerLabelY(layer) {
     const last = layer[layer.length - 1];
     const bandHeight = stackedYScale(last[0]) - stackedYScale(last[1]);
-    const offset = Math.min(bandHeight / 2, 28);
-    return stackedYScale(last[1]) + Math.max(offset, 28);
+    const offset = Math.min(bandHeight / 2, 20);
+    return stackedYScale(last[1]) + Math.max(offset, 18);
+  }
+
+  // A noticeably darker shade of this band's own fill color, for the label
+  // drawn inside it: same hue (so the label reads as "belonging" to its
+  // band), but mixed toward black for the contrast a label needs against a
+  // translucent 0.3-opacity fill -- plain `colorFor()` is too light/soft to
+  // read well as text at that opacity.
+  function labelColorFor(index) {
+    return `color-mix(in srgb, ${colorFor(index)} 55%, black 45%)`;
   }
 
   // The combined view's own total, shown as a single figure below the
@@ -335,20 +344,15 @@
 
       {#each stackedSeries as layer, index (stackKeys[index])}
         <text
-          class="balances-area-name"
+          class="balances-area-combined-label"
           x={WIDTH - MARGIN.right - 12}
-          y={layerLabelY(layer) - 16}
+          y={layerLabelY(layer)}
           text-anchor="end"
+          style:fill={labelColorFor(index)}
         >
-          {data.accounts[index].name}
-        </text>
-        <text
-          class="balances-area-label"
-          x={WIDTH - MARGIN.right - 12}
-          y={layerLabelY(layer) + 10}
-          text-anchor="end"
-        >
-          {formatCents(layerOwnBalance(index))}
+          <tspan class="balances-area-name">{data.accounts[index].name}</tspan><tspan class="balances-area-label"
+            >  {formatCents(layerOwnBalance(index))}</tspan
+          >
         </text>
       {/each}
 
@@ -364,15 +368,6 @@
     </svg>
 
     <p class="balances-combined-total">Total: {formatCents(combinedTotal)}</p>
-
-    <ul class="balances-legend">
-      {#each data.accounts as account, index (account.id)}
-        <li class="balances-legend-item">
-          <span class="balances-legend-swatch" style:background={colorFor(index)}></span>
-          <span class="balances-legend-label">{account.name}</span>
-        </li>
-      {/each}
-    </ul>
   {/if}
 </div>
 
@@ -508,20 +503,21 @@
     stroke-width: 1;
   }
 
-  /* The account's own balance, drawn inside its band -- styled like the
-     mini-chart balance figures (big, dark, readable at a glance) rather
-     than colored to match its band, so it stays legible over any fill
-     color/opacity. */
-  .balances-area-label {
-    font-size: 20px;
-    font-weight: 700;
-    fill: #374151;
+  /* Account name + its own balance, one line, inside its own band. Color
+     comes from the parent <text>'s inline fill (a darkened shade of that
+     band's own color, see labelColorFor()) -- both tspans inherit it, so
+     neither rule sets its own fill. */
+  .balances-area-combined-label {
+    font-size: 14px;
   }
 
   .balances-area-name {
-    font-size: 15px;
     font-weight: 600;
-    fill: #374151;
+  }
+
+  .balances-area-label {
+    font-size: 17px;
+    font-weight: 700;
   }
 
   .balances-combined-total {
@@ -529,28 +525,5 @@
     font-weight: 700;
     font-size: 1.1rem;
     color: #111827;
-  }
-
-  .balances-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .balances-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.8rem;
-  }
-
-  .balances-legend-swatch {
-    display: inline-block;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 0.15rem;
   }
 </style>

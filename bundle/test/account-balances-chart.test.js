@@ -146,7 +146,9 @@ test('combined view (the default): a stacked area band per account, each labeled
   // appears once, below the chart -- not as a band label.
   expect(target.querySelector('.balances-combined-total').textContent.trim()).toBe('Total: $615.00');
 
-  expect(target.querySelectorAll('.balances-legend-item').length).toBe(2);
+  // No separate legend -- the in-band name + balance labels are the only
+  // way account identity is shown in this view now.
+  expect(target.querySelector('.balances-legend')).toBeNull();
 });
 
 test('clicking a range button re-fetches with the new range', async () => {
