@@ -127,6 +127,14 @@ router.put('/:id', async (req, res, next) => {
 
     const goal = { id: req.params.id, entityType, entityId, targetAmountCents, targetDate };
 
+    // Known limitation, accepted as a trade-off (single shared household
+    // user, no multi-user permissions in scope): this read-modify-write
+    // isn't atomic across *different* ids, so two truly concurrent PUTs for
+    // two different goals can race and one's update can be lost (the
+    // last writeGoals() to complete wins the whole file, same as the
+    // same-id case the route's own tests exercise -- just here it can
+    // clobber an unrelated goal's update instead of intentionally
+    // replacing it).
     const goals = await readGoals();
     const index = goals.findIndex((g) => g.id === goal.id);
     if (index >= 0) {
