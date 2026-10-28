@@ -262,7 +262,7 @@
           <li class="goal-row setting-row">
             <span class="goal-entity-name setting-label">{entityName(goal.entityType, goal.entityId)}</span>
             <input
-              class="goal-amount-input"
+              class="goal-amount-input abt-input"
               type="number"
               step="0.01"
               min="0"
@@ -270,12 +270,12 @@
               onchange={(e) => handleAmountChange(goal, e)}
             />
             <input
-              class="goal-date-input"
+              class="goal-date-input abt-input"
               type="date"
               value={goal.targetDate}
               onchange={(e) => handleDateChange(goal, e)}
             />
-            <button type="button" class="goal-delete-button" onclick={() => deleteGoal(goal)}>
+            <button type="button" class="goal-delete-button abt-btn" onclick={() => deleteGoal(goal)}>
               Delete
             </button>
             {#if goal.error}
@@ -288,7 +288,7 @@
 
     <div class="goal-new-row setting-row">
       <select
-        class="goal-new-type-select"
+        class="goal-new-type-select abt-input"
         value={newEntityType}
         onchange={handleNewEntityTypeChange}
       >
@@ -296,7 +296,7 @@
         <option value="account">Account</option>
       </select>
       <select
-        class="goal-entity-select"
+        class="goal-entity-select abt-input"
         value={newEntityId}
         onchange={(e) => { newEntityId = e.target.value; }}
       >
@@ -305,7 +305,7 @@
         {/each}
       </select>
       <input
-        class="goal-new-amount-input"
+        class="goal-new-amount-input abt-input"
         type="number"
         step="0.01"
         min="0"
@@ -314,12 +314,12 @@
         oninput={(e) => { newAmountDollars = e.target.value; }}
       />
       <input
-        class="goal-new-date-input"
+        class="goal-new-date-input abt-input"
         type="date"
         value={newDate}
         oninput={(e) => { newDate = e.target.value; }}
       />
-      <button type="button" class="goal-add-button" onclick={addGoal}>Add goal</button>
+      <button type="button" class="goal-add-button abt-btn" onclick={addGoal}>Add goal</button>
     </div>
     {#if newGoalError}
       <p class="goal-new-error" role="alert">{newGoalError}</p>
@@ -358,6 +358,32 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.9rem;
+  }
+
+  /* ABT's own base input/button shape (height, radius, subtle
+     border/background derived from the inherited text color so it still
+     looks right under every Actual theme -- see AccountBalancesChart.svelte's
+     colorFor()/labelColorFor() for the same color-mix technique). */
+  .abt-input,
+  .abt-btn {
+    height: 30px;
+    border-radius: 6.5px;
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    box-sizing: border-box;
+  }
+
+  .abt-input {
+    padding: 0 8px;
+  }
+
+  .abt-btn {
+    padding: 0 12px;
+    font-weight: 500;
+    cursor: pointer;
   }
 
   .goal-entity-name {

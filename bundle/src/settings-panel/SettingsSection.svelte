@@ -31,8 +31,7 @@
     expanded = !expanded;
   }
 
-  function handleTextSizeChange(event) {
-    const px = Number(event.target.value);
+  function selectTextSize(px) {
     currentPx = px;
     applyScale(document, px);
     try {
@@ -84,20 +83,23 @@
     <div class="settings-list">
       <div class="setting-row">
         <span class="setting-text">
-          <span class="setting-label">
-            <label for="actualmint-text-size-select">Text size</label>
-          </span>
+          <span class="setting-label" id="actualmint-text-size-label">Text size</span>
           <span class="setting-desc">Make ActualMint's own widgets larger or smaller.</span>
         </span>
-        <select
-          id="actualmint-text-size-select"
-          value={currentPx}
-          onchange={handleTextSizeChange}
-        >
+        <span class="pill-group" role="group" aria-labelledby="actualmint-text-size-label">
           {#each PRESETS as preset (preset.id)}
-            <option value={preset.px}>{preset.label}</option>
+            <button
+              type="button"
+              id="actualmint-text-size-pill-{preset.id}"
+              class="pill"
+              class:pill--active={currentPx === preset.px}
+              aria-pressed={currentPx === preset.px ? 'true' : 'false'}
+              onclick={() => selectTextSize(preset.px)}
+            >
+              {preset.label}
+            </button>
           {/each}
-        </select>
+        </span>
       </div>
 
       <div class="setting-row">
@@ -105,8 +107,14 @@
           <span class="setting-label">Mint-style theme</span>
           <span class="setting-desc">Recolor Actual to look more like a classic budgeting app.</span>
         </span>
-        <label class="setting-toggle">
-          <input type="checkbox" checked={mintEnabled} onchange={handleMintToggle} />
+        <label class="setting-toggle switch">
+          <input
+            type="checkbox"
+            class="switch__input"
+            checked={mintEnabled}
+            onchange={handleMintToggle}
+          />
+          <span class="switch__track"><span class="switch__thumb"></span></span>
         </label>
       </div>
 
@@ -212,5 +220,88 @@
     display: flex;
     align-items: center;
     cursor: pointer;
+  }
+
+  /* CSS-only toggle switch, matching ABT's own `.switch`/`.switch__track`/
+     `.switch__thumb` shape. The real checkbox input stays present and
+     functional (same checked/onchange wiring) -- only visually hidden --
+     so this keeps full keyboard/screen-reader semantics rather than
+     swapping in an unlabeled <div>. Colors are relative to currentColor so
+     this renders correctly in every Actual theme. */
+  :global(.settings-section .switch) {
+    width: 28px;
+    height: 16px;
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  :global(.settings-section .switch__input) {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  :global(.settings-section .switch__track) {
+    width: 28px;
+    height: 16px;
+    border-radius: 999px;
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, currentColor 20%, transparent);
+    transition: background-color 0.15s ease;
+    pointer-events: none;
+  }
+
+  :global(.settings-section .switch__input:checked + .switch__track) {
+    background: var(--palette-chartQual1, #2563eb);
+  }
+
+  :global(.settings-section .switch__thumb) {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: Canvas;
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    transition: transform 0.15s ease;
+  }
+
+  :global(.settings-section .switch__input:checked + .switch__track .switch__thumb) {
+    transform: translateX(12px);
+  }
+
+  :global(.settings-section .switch__input:focus-visible + .switch__track) {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  /* Pill-button group, matching ABT's own segmented-control chips. */
+  :global(.settings-section .pill-group) {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  :global(.settings-section .pill) {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  :global(.settings-section .pill--active) {
+    background: color-mix(in srgb, var(--palette-chartQual1, #2563eb) 20%, transparent);
+    border-color: var(--palette-chartQual1, #2563eb);
+    color: var(--palette-chartQual1, #2563eb);
   }
 </style>
