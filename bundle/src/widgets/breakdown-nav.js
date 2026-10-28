@@ -105,6 +105,54 @@ export function zoomOut(state) {
   return { ...EMPTY_POSITION, ...sticky, level: 'groups' };
 }
 
+// Today's month as a YYYY-MM string, the unit /api/spending-breakdown's
+// `month` query parameter expects. Shared by every caller of
+// buildBreakdownParams() below so "what month is it" is computed the same
+// way everywhere.
+export function currentMonth() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+// Builds the /api/spending-breakdown query params for a given nav state --
+// shared by every caller (the drill-down modal, and a standalone donut
+// widget) so the two never drift out of sync on how a NavState maps to a
+// request.
+export function buildBreakdownParams(nav, month) {
+  const params = new URLSearchParams({ month, level: nav.level });
+
+  if (nav.level === 'groups') {
+    // A curated subset (the standalone donut widget's entry point); an
+    // absent/empty groupIds means "every expense group," so the param is
+    // only set when there's an actual restriction to apply.
+    if (nav.groupIds && nav.groupIds.length > 0) {
+      params.set('groupIds', nav.groupIds.join(','));
+    }
+  } else if (nav.level === 'categories') {
+    // A rollup's member categories are an arbitrary id list (not a real
+    // group), so it's sent as categoryIds instead of groupId -- see this
+    // file's entry-point comment.
+    if (nav.categoryIds) {
+      params.set('categoryIds', nav.categoryIds.join(','));
+    } else {
+      params.set('groupId', nav.groupId);
+    }
+  } else if (nav.level === 'payees' || nav.level === 'transactions') {
+    params.set('categoryId', nav.categoryId);
+  }
+
+  if (nav.level === 'transactions') {
+    // The "(No payee)" bucket's slice id is `null`, which can't travel as a
+    // literal query-param value distinguishable from "absent" -- the API's
+    // own NO_PAYEE_SENTINEL ("__none__") carries that case.
+    params.set('payeeId', nav.payeeId === null ? '__none__' : nav.payeeId);
+  }
+
+  return params;
+}
+
 // Drills one level in, into the clicked `slice` ({ id, label }). A no-op
 // at the leaf level ('transactions') -- a single transaction row has
 // nothing further to drill into -- returning the same state unchanged.

@@ -1,4 +1,4 @@
-import { initialState, drillInto, zoomOut } from '../src/widgets/breakdown-nav';
+import { initialState, drillInto, zoomOut, buildBreakdownParams } from '../src/widgets/breakdown-nav';
 
 const OPEN = { categoryId: 'catA', categoryName: 'Groceries', groupId: 'group1', groupName: 'Everyday Expenses' };
 
@@ -121,5 +121,38 @@ describe('group-filtered entry (a standalone "pick your own groups" donut widget
 
     const backToGroups = zoomOut(categoriesState);
     expect(backToGroups).toMatchObject({ level: 'groups', groupIds: ['group1', 'group2'] });
+  });
+});
+
+describe('buildBreakdownParams', () => {
+  test('groups level with no curated list omits groupIds (every expense group)', () => {
+    const params = buildBreakdownParams(initialState({ groupIds: [] }), '2026-10');
+    expect(params.toString()).toBe('month=2026-10&level=groups');
+  });
+
+  test('groups level with a curated list sends a comma-joined groupIds', () => {
+    const params = buildBreakdownParams(initialState({ groupIds: ['group1', 'group2'] }), '2026-10');
+    expect(params.get('groupIds')).toBe('group1,group2');
+  });
+
+  test('categories level for a real group sends groupId', () => {
+    const state = drillInto(initialState({ groupIds: [] }), { id: 'group1', label: 'Shopping' });
+    const params = buildBreakdownParams(state, '2026-10');
+    expect(params.get('groupId')).toBe('group1');
+    expect(params.has('categoryIds')).toBe(false);
+  });
+
+  test('categories level for a rollup sends categoryIds instead of groupId', () => {
+    const state = initialState({ categoryIds: ['catA', 'catB'], rollupTitle: 'Rollup' });
+    const params = buildBreakdownParams(state, '2026-10');
+    expect(params.get('categoryIds')).toBe('catA,catB');
+    expect(params.has('groupId')).toBe(false);
+  });
+
+  test('transactions level sends categoryId and payeeId, using the sentinel for the no-payee bucket', () => {
+    const state = drillInto(initialState(OPEN), { id: null, label: '(No payee)' });
+    const params = buildBreakdownParams(state, '2026-10');
+    expect(params.get('categoryId')).toBe('catA');
+    expect(params.get('payeeId')).toBe('__none__');
   });
 });

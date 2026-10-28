@@ -1,6 +1,6 @@
 <script>
   import { untrack } from 'svelte';
-  import { initialState, drillInto, zoomOut } from './breakdown-nav';
+  import { initialState, drillInto, zoomOut, currentMonth, buildBreakdownParams } from './breakdown-nav';
   import { fetchApi } from '../api-client';
   import CategoryBreakdownDonut from './CategoryBreakdownDonut.svelte';
 
@@ -30,39 +30,13 @@
   // only applies its result if no newer call has started since.
   let loadSeq = 0;
 
-  function currentMonth() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
-
   async function load(currentNav) {
     const seq = ++loadSeq;
     errorMessage = null;
     breakdown = null;
 
     try {
-      const params = new URLSearchParams({ month: currentMonth(), level: currentNav.level });
-      if (currentNav.level === 'categories') {
-        // A rollup's member categories are an arbitrary id list (not a real
-        // group), so it's sent as categoryIds instead of groupId -- see
-        // breakdown-nav.js's entry-point comment.
-        if (currentNav.categoryIds) {
-          params.set('categoryIds', currentNav.categoryIds.join(','));
-        } else {
-          params.set('groupId', currentNav.groupId);
-        }
-      } else if (currentNav.level === 'payees' || currentNav.level === 'transactions') {
-        params.set('categoryId', currentNav.categoryId);
-      }
-      if (currentNav.level === 'transactions') {
-        // The "(No payee)" bucket's slice id is `null`, which can't travel
-        // as a literal query-param value distinguishable from "absent" --
-        // the API's own NO_PAYEE_SENTINEL ("__none__") carries that case.
-        params.set('payeeId', currentNav.payeeId === null ? '__none__' : currentNav.payeeId);
-      }
-
+      const params = buildBreakdownParams(currentNav, currentMonth());
       const response = await fetchApi(`/api/spending-breakdown?${params}`);
 
       if (seq !== loadSeq) return; // a newer navigation has since started; discard this response

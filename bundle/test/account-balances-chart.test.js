@@ -113,7 +113,7 @@ test('separate view (the default): one mini area chart per account, each with it
   expect(target.querySelector('path.balances-line')).toBeNull();
 });
 
-test('combined view: one line per account plus a visually distinct net-worth line', async () => {
+test('combined view: a stacked area band per account, with a cumulative value label on each', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
   const target = mountChart();
@@ -123,21 +123,22 @@ test('combined view: one line per account plus a visually distinct net-worth lin
   switchToCombinedView(target);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  const lines = target.querySelectorAll('path.balances-line');
-  // 2 accounts + 1 net-worth line.
-  expect(lines.length).toBe(3);
+  const areas = target.querySelectorAll('path.balances-area');
+  // One band per account (2), no separate net-worth path -- the top band's
+  // cumulative label already reads as the total.
+  expect(areas.length).toBe(2);
 
-  const netWorthLine = target.querySelector('path.balances-line--net-worth');
-  expect(netWorthLine).not.toBeNull();
-  // Never shares a stroke color with a per-account line.
-  const accountColors = new Set(
-    Array.from(target.querySelectorAll('path.balances-line:not(.balances-line--net-worth)')).map((el) =>
-      el.getAttribute('stroke'),
-    ),
-  );
-  expect(accountColors.has(netWorthLine.getAttribute('stroke'))).toBe(false);
+  const labels = Array.from(target.querySelectorAll('.balances-area-label')).map((el) => el.textContent.trim());
+  // Checking's own latest balance ($110.00) stacks first, so its cumulative
+  // label is just its own balance; Savings stacks on top, so its label is
+  // the running total of both accounts (110 + 505 = $615.00).
+  expect(labels).toContain('$110.00');
+  expect(labels).toContain('$615.00');
 
-  expect(target.querySelectorAll('.balances-legend-item').length).toBe(3);
+  // Account legend only (no "Total" entry -- the stacked top edge already
+  // communicates net worth).
+  expect(target.querySelectorAll('.balances-legend-item').length).toBe(2);
+  expect(target.textContent).not.toContain('Total');
 });
 
 test('clicking a range button re-fetches with the new range', async () => {

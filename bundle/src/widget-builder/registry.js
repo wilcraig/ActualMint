@@ -35,4 +35,9 @@ export const WIDGET_REGISTRY = [
     label: 'Unlinked transfers (possible double-counted income/expense)',
     fields: [],
   },
+  {
+    id: 'spending-breakdown-donut',
+    label: 'Spending breakdown donut',
+    fields: [],
+  },
 ];

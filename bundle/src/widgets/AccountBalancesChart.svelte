@@ -1,5 +1,5 @@
 <script>
-  import { scaleTime, scaleLinear, line as d3Line, area as d3Area, extent as d3Extent, timeFormat } from 'd3';
+  import { scaleTime, scaleLinear, line as d3Line, area as d3Area, stack as d3Stack, extent as d3Extent, timeFormat } from 'd3';
   import { fetchApi } from '../api-client';
 
   // An empty array (the default) means "every open account," matching the
@@ -121,12 +121,6 @@
 
   let allDates = $derived(data && !isEmpty ? data.netWorth.map((p) => parseDateOnly(p.date)) : []);
 
-  let allBalances = $derived(
-    data && !isEmpty
-      ? [...data.accounts.flatMap((a) => a.points.map((p) => p.balanceCents)), ...data.netWorth.map((p) => p.balanceCents)]
-      : []
-  );
-
   let xScale = $derived.by(() => {
     if (allDates.length === 0) return null;
     return scaleTime()
@@ -134,16 +128,43 @@
       .range([MARGIN.left, WIDTH - MARGIN.right]);
   });
 
-  let yScale = $derived.by(() => {
-    if (allBalances.length === 0) return null;
-    let [min, max] = d3Extent(allBalances);
+  let xTicks = $derived(xScale ? xScale.ticks(5) : []);
+
+  // Stacked-area combined view: every account's series shares the same
+  // `days` array by construction (account-balances.js builds every
+  // account's points -- and netWorth's -- by iterating the same `days`
+  // list), so each account's points[i] is always the same calendar day,
+  // letting rows be built by zipping on index rather than re-matching
+  // dates across accounts.
+  let stackedRows = $derived(
+    data && !isEmpty
+      ? data.accounts[0].points.map((point, i) => {
+          const row = { date: point.date };
+          for (const account of data.accounts) {
+            row[account.id] = account.points[i]?.balanceCents ?? 0;
+          }
+          return row;
+        })
+      : []
+  );
+
+  let stackKeys = $derived(data && !isEmpty ? data.accounts.map((a) => a.id) : []);
+
+  let stackedSeries = $derived.by(() => {
+    if (stackedRows.length === 0 || stackKeys.length === 0) return [];
+    return d3Stack().keys(stackKeys)(stackedRows);
+  });
+
+  let stackedYScale = $derived.by(() => {
+    if (stackedSeries.length === 0) return null;
+    let [min, max] = d3Extent(stackedSeries.flatMap((layer) => layer.flatMap((d) => [d[0], d[1]])));
+    min = Math.min(min, 0);
     // A perfectly flat combined range (e.g. every account holding a steady
     // zero balance) would otherwise collapse scaleLinear's domain to a
-    // single point -- pad it so the line still renders at a sensible height
-    // instead of degenerating.
+    // single point -- pad it so the bands still render at a sensible
+    // height instead of degenerating.
     if (min === max) {
-      const pad = Math.max(Math.abs(min) * 0.1, 100);
-      min -= pad;
+      const pad = Math.max(Math.abs(max) * 0.1, 100);
       max += pad;
     }
     return scaleLinear()
@@ -152,19 +173,37 @@
       .range([HEIGHT - MARGIN.bottom, MARGIN.top]);
   });
 
-  let lineGenerator = $derived.by(() => {
-    if (!xScale || !yScale) return null;
-    return d3Line()
-      .x((p) => xScale(parseDateOnly(p.date)))
-      .y((p) => yScale(p.balanceCents));
+  let stackedAreaGen = $derived.by(() => {
+    if (!xScale || !stackedYScale) return null;
+    return d3Area()
+      .x((d) => xScale(parseDateOnly(d.data.date)))
+      .y0((d) => stackedYScale(d[0]))
+      .y1((d) => stackedYScale(d[1]));
   });
 
-  function pathFor(points) {
-    return lineGenerator ? lineGenerator(points) : null;
+  function stackedAreaPath(layer) {
+    return stackedAreaGen ? stackedAreaGen(layer) : null;
   }
 
-  let xTicks = $derived(xScale ? xScale.ticks(5) : []);
-  let yTicks = $derived(yScale ? yScale.ticks(5) : []);
+  // The large cumulative value label drawn inside each band, near its
+  // right edge -- the running total through that layer (this layer's own
+  // balance plus every layer stacked below it), matching how a stacked
+  // area chart is conventionally read: the top edge of a layer is always
+  // "everything so far."
+  function layerLabel(layer) {
+    const last = layer[layer.length - 1];
+    return formatCents(last[1]);
+  }
+
+  function layerLabelY(layer) {
+    const last = layer[layer.length - 1];
+    // Centered in the band's own height where there's room; clamped to stay
+    // inside the band (rather than centered) once the band gets thin, so
+    // the label never spills into its neighbor.
+    const bandHeight = stackedYScale(last[0]) - stackedYScale(last[1]);
+    const offset = Math.min(bandHeight / 2, 28);
+    return stackedYScale(last[1]) + Math.max(offset, 14);
+  }
 
   // A mini chart's own y-scale is fit to just that one series, independent
   // of every other account -- the whole point of the "Separate" view.
@@ -277,18 +316,27 @@
       class="balances-svg"
       viewBox="0 0 {WIDTH} {HEIGHT}"
       role="img"
-      aria-label="Account balances over time"
+      aria-label="Account balances over time, stacked"
     >
-      {#each yTicks as tick (tick)}
-        <line
-          class="balances-gridline"
-          x1={MARGIN.left}
-          x2={WIDTH - MARGIN.right}
-          y1={yScale(tick)}
-          y2={yScale(tick)}
+      {#each stackedSeries as layer, index (stackKeys[index])}
+        <path
+          class="balances-area"
+          d={stackedAreaPath(layer)}
+          fill={colorFor(index)}
+          fill-opacity="0.3"
+          stroke={colorFor(index)}
+          stroke-opacity="0.6"
         />
-        <text class="balances-axis-label balances-axis-label--y" x={MARGIN.left - 8} y={yScale(tick)}>
-          {formatCents(tick)}
+      {/each}
+
+      {#each stackedSeries as layer, index (stackKeys[index])}
+        <text
+          class="balances-area-label"
+          x={WIDTH - MARGIN.right - 12}
+          y={layerLabelY(layer)}
+          text-anchor="end"
+        >
+          {layerLabel(layer)}
         </text>
       {/each}
 
@@ -301,12 +349,6 @@
           {formatTick(tick)}
         </text>
       {/each}
-
-      {#each data.accounts as account, index (account.id)}
-        <path class="balances-line" d={pathFor(account.points)} stroke={colorFor(index)} fill="none" />
-      {/each}
-
-      <path class="balances-line balances-line--net-worth" d={pathFor(data.netWorth)} fill="none" />
     </svg>
 
     <ul class="balances-legend">
@@ -316,10 +358,6 @@
           <span class="balances-legend-label">{account.name}</span>
         </li>
       {/each}
-      <li class="balances-legend-item">
-        <span class="balances-legend-swatch balances-legend-swatch--net-worth"></span>
-        <span class="balances-legend-label">Total</span>
-      </li>
     </ul>
   {/if}
 </div>
@@ -443,37 +481,27 @@
     height: auto;
   }
 
-  .balances-gridline {
-    stroke: #e5e7eb;
-    stroke-width: 1;
-  }
-
   .balances-axis-label {
     font-size: 9px;
     fill: #6b7280;
-  }
-
-  .balances-axis-label--y {
-    text-anchor: end;
-    dominant-baseline: middle;
   }
 
   .balances-axis-label--x {
     text-anchor: middle;
   }
 
-  .balances-line {
-    stroke-width: 2;
+  .balances-area {
+    stroke-width: 1;
   }
 
-  /* Visually distinct from every per-account line: thicker, black, and
-     dashed, rather than drawn from the shared categorical palette (which is
-     reserved for per-account lines and could otherwise collide with one of
-     them). */
-  .balances-line--net-worth {
-    stroke: #111827;
-    stroke-width: 3;
-    stroke-dasharray: 6 4;
+  /* The large cumulative-value callout drawn inside each band -- styled
+     like the mini-chart balance figures (big, dark, readable at a glance)
+     rather than colored to match its band, so it stays legible over any
+     fill color/opacity. */
+  .balances-area-label {
+    font-size: 20px;
+    font-weight: 700;
+    fill: #374151;
   }
 
   .balances-legend {
@@ -497,9 +525,5 @@
     width: 0.75rem;
     height: 0.75rem;
     border-radius: 0.15rem;
-  }
-
-  .balances-legend-swatch--net-worth {
-    background: #111827;
   }
 </style>

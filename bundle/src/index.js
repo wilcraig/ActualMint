@@ -6,6 +6,7 @@ import PaycheckAlertBanner from './widgets/PaycheckAlertBanner.svelte';
 import BillsTimeline from './widgets/BillsTimeline.svelte';
 import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
 import UnlinkedTransfers from './widgets/UnlinkedTransfers.svelte';
+import SpendingBreakdownDonut from './widgets/SpendingBreakdownDonut.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -94,6 +95,17 @@ mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
 //   {{ACTUALMINT:unlinked-transfers:null}}
 mountWidget('{{ACTUALMINT:unlinked-transfers:', (host) => {
   new UnlinkedTransfers({ target: host });
+});
+
+// SpendingBreakdownDonut's config is an array of category-group ids to show
+// (empty or omitted means every expense group), the same convention as
+// account-balances' accountIds. To show every group, type the following
+// literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:spending-breakdown-donut:[]}}
+// or to show only specific groups:
+//   {{ACTUALMINT:spending-breakdown-donut:["groupId1","groupId2"]}}
+mountWidget('{{ACTUALMINT:spending-breakdown-donut:', (host, groupIds) => {
+  new SpendingBreakdownDonut({ target: host, props: { groupIds } });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside
