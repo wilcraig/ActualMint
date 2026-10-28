@@ -11,6 +11,7 @@ import SavingsGoalsThermometers from './widgets/SavingsGoalsThermometers.svelte'
 import BurnRateChart from './widgets/BurnRateChart.svelte';
 import SpendingHeatmap from './widgets/SpendingHeatmap.svelte';
 import SavingsRateGauge from './widgets/SavingsRateGauge.svelte';
+import SpendingSankey from './widgets/SpendingSankey.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -169,6 +170,17 @@ mountWidget('{{ACTUALMINT:spending-heatmap:', (host, config) => {
 //   {{ACTUALMINT:savings-rate-gauge:["groupId1","groupId2"]}}
 mountWidget('{{ACTUALMINT:savings-rate-gauge:', (host, investmentGroupIds) => {
   new SavingsRateGauge({ target: host, props: { investmentGroupIds: investmentGroupIds ?? [] } });
+});
+
+// SpendingSankey takes no config (mount.js still requires the placeholder's
+// body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:spending-sankey:}}` fails to parse and the widget never
+// mounts). Zero-config, current-month only, shows the whole budget -- same
+// posture as unlinked-transfers. To add this widget, type the following
+// literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:spending-sankey:null}}
+mountWidget('{{ACTUALMINT:spending-sankey:', (host) => {
+  new SpendingSankey({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

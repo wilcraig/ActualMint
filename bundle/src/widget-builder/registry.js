@@ -79,6 +79,11 @@ export const WIDGET_REGISTRY = [
     ],
   },
   {
+    id: 'spending-sankey',
+    label: 'Monthly Sankey (Income → Group → Category)',
+    fields: [],
+  },
+  {
     id: 'spending-heatmap',
     label: 'Spending intensity calendar heatmap',
     fields: [
