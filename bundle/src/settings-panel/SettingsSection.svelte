@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { PRESETS, loadSavedScale, saveScale, applyScale } from '../text-scale';
   import { applyMintTheme, loadSavedMintThemeEnabled, saveMintThemeEnabled } from '../mint-theme';
+  import GoalsList from './GoalsList.svelte';
 
   let currentPx = $state(PRESETS[0].px);
   let mintEnabled = $state(false);
@@ -68,6 +69,8 @@
     Mint-style theme
   </label>
 </div>
+
+<GoalsList />
 
 <style>
   .actualmint-settings-section {
