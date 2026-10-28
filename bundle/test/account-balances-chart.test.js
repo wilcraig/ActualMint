@@ -113,7 +113,7 @@ test('separate view (the default): one mini area chart per account, each with it
   expect(target.querySelector('path.balances-line')).toBeNull();
 });
 
-test('combined view: a stacked area band per account, with a cumulative value label on each', async () => {
+test('combined view: a stacked area band per account, each labeled with its own (not cumulative) balance, plus a total below the chart', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
   const target = mountChart();
@@ -124,21 +124,22 @@ test('combined view: a stacked area band per account, with a cumulative value la
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   const areas = target.querySelectorAll('path.balances-area');
-  // One band per account (2), no separate net-worth path -- the top band's
-  // cumulative label already reads as the total.
   expect(areas.length).toBe(2);
 
-  const labels = Array.from(target.querySelectorAll('.balances-area-label')).map((el) => el.textContent.trim());
-  // Checking's own latest balance ($110.00) stacks first, so its cumulative
-  // label is just its own balance; Savings stacks on top, so its label is
-  // the running total of both accounts (110 + 505 = $615.00).
-  expect(labels).toContain('$110.00');
-  expect(labels).toContain('$615.00');
+  const names = Array.from(target.querySelectorAll('.balances-area-name')).map((el) => el.textContent.trim());
+  expect(names).toEqual(['Checking', 'Savings']);
 
-  // Account legend only (no "Total" entry -- the stacked top edge already
-  // communicates net worth).
+  const labels = Array.from(target.querySelectorAll('.balances-area-label')).map((el) => el.textContent.trim());
+  // Each account's OWN latest balance, never the running cumulative total
+  // the stack's top edge would otherwise suggest (Checking's own $110.00,
+  // not Savings' $615.00 cumulative-through-Savings figure).
+  expect(labels).toEqual(['$110.00', '$505.00']);
+
+  // The combined total (same figure as the Separate view's Total card)
+  // appears once, below the chart -- not as a band label.
+  expect(target.querySelector('.balances-combined-total').textContent.trim()).toBe('Total: $615.00');
+
   expect(target.querySelectorAll('.balances-legend-item').length).toBe(2);
-  expect(target.textContent).not.toContain('Total');
 });
 
 test('clicking a range button re-fetches with the new range', async () => {

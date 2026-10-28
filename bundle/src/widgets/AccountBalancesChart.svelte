@@ -185,25 +185,31 @@
     return stackedAreaGen ? stackedAreaGen(layer) : null;
   }
 
-  // The large cumulative value label drawn inside each band, near its
-  // right edge -- the running total through that layer (this layer's own
-  // balance plus every layer stacked below it), matching how a stacked
-  // area chart is conventionally read: the top edge of a layer is always
-  // "everything so far."
-  function layerLabel(layer) {
-    const last = layer[layer.length - 1];
-    return formatCents(last[1]);
+  // The label drawn inside each band is that account's OWN current balance
+  // (not the running cumulative total) -- read straight from the account's
+  // own last point rather than derived from the stack's [y0, y1] pair, so
+  // it's exact rather than a subtraction of two already-scaled values.
+  function layerOwnBalance(index) {
+    const points = data.accounts[index].points;
+    return points[points.length - 1].balanceCents;
   }
 
+  // The vertical center of the account-name + balance label pair drawn
+  // inside this band -- centered in the band's own height where there's
+  // room; clamped to stay inside the band (rather than centered) once the
+  // band gets thin, so the two-line label never spills into its neighbor.
   function layerLabelY(layer) {
     const last = layer[layer.length - 1];
-    // Centered in the band's own height where there's room; clamped to stay
-    // inside the band (rather than centered) once the band gets thin, so
-    // the label never spills into its neighbor.
     const bandHeight = stackedYScale(last[0]) - stackedYScale(last[1]);
     const offset = Math.min(bandHeight / 2, 28);
-    return stackedYScale(last[1]) + Math.max(offset, 14);
+    return stackedYScale(last[1]) + Math.max(offset, 28);
   }
+
+  // The combined view's own total, shown as a single figure below the
+  // chart (rather than as a band of its own, and rather than as the
+  // top-of-stack cumulative label the per-band callouts used to carry) --
+  // same figure as the Separate view's Total card, computed the same way.
+  let combinedTotal = $derived(data && !isEmpty ? latestBalance(data.netWorth) : 0);
 
   // A mini chart's own y-scale is fit to just that one series, independent
   // of every other account -- the whole point of the "Separate" view.
@@ -331,12 +337,20 @@
 
       {#each stackedSeries as layer, index (stackKeys[index])}
         <text
-          class="balances-area-label"
+          class="balances-area-name"
           x={WIDTH - MARGIN.right - 12}
-          y={layerLabelY(layer)}
+          y={layerLabelY(layer) - 16}
           text-anchor="end"
         >
-          {layerLabel(layer)}
+          {data.accounts[index].name}
+        </text>
+        <text
+          class="balances-area-label"
+          x={WIDTH - MARGIN.right - 12}
+          y={layerLabelY(layer) + 10}
+          text-anchor="end"
+        >
+          {formatCents(layerOwnBalance(index))}
         </text>
       {/each}
 
@@ -350,6 +364,8 @@
         </text>
       {/each}
     </svg>
+
+    <p class="balances-combined-total">Total: {formatCents(combinedTotal)}</p>
 
     <ul class="balances-legend">
       {#each data.accounts as account, index (account.id)}
@@ -494,14 +510,27 @@
     stroke-width: 1;
   }
 
-  /* The large cumulative-value callout drawn inside each band -- styled
-     like the mini-chart balance figures (big, dark, readable at a glance)
-     rather than colored to match its band, so it stays legible over any
-     fill color/opacity. */
+  /* The account's own balance, drawn inside its band -- styled like the
+     mini-chart balance figures (big, dark, readable at a glance) rather
+     than colored to match its band, so it stays legible over any fill
+     color/opacity. */
   .balances-area-label {
     font-size: 20px;
     font-weight: 700;
     fill: #374151;
+  }
+
+  .balances-area-name {
+    font-size: 15px;
+    font-weight: 600;
+    fill: #374151;
+  }
+
+  .balances-combined-total {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #111827;
   }
 
   .balances-legend {

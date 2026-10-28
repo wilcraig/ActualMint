@@ -132,7 +132,7 @@
       </ul>
     {/if}
   {:else}
-    <CategoryBreakdownDonut slices={breakdown.slices} total={breakdown.total} onSliceClick={handleSliceClick} />
+    <CategoryBreakdownDonut slices={breakdown.slices} total={breakdown.total} onSliceClick={handleSliceClick} showLegend={false} />
   {/if}
 </div>
 
