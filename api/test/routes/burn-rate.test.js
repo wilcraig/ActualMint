@@ -97,6 +97,37 @@ test('budgetedCents sums budgeted across expense categories, excluding hidden on
   });
 });
 
+test('budgetedCents excludes categories under a hidden group, even when the category itself is not hidden', async () => {
+  const client = stubClient({
+    categoryGroups: [
+      {
+        id: 'group1',
+        is_income: false,
+        hidden: false,
+        categories: [{ id: 'catA', budgeted: 50000, hidden: false }],
+      },
+      // Mirrors categories.test.js's own "Archived Group" fixture: the group
+      // is hidden, but its one category is not -- the whole group's budgeted
+      // total must still be excluded.
+      {
+        id: 'group2',
+        is_income: false,
+        hidden: true,
+        categories: [{ id: 'catB', budgeted: 30000, hidden: false }],
+      },
+    ],
+    transactionsByTable: { transactions: [] },
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/burn-rate?month=2026-10`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.budgetedCents).toBe(50000);
+  });
+});
+
 test('days is a running cumulative total of non-transfer, non-income spending from day 1 through today (current month)', async () => {
   const client = stubClient({
     categoryGroups: [],

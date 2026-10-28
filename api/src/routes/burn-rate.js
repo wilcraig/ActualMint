@@ -96,15 +96,18 @@ function buildCumulativeSeries(rows, days) {
   return points;
 }
 
-// Sums `budgeted` across every non-hidden category in a non-income group,
-// from getBudgetMonth(month)'s categoryGroups shape -- same hidden-category
-// skip categories.js already applies to getCategoryGroups()'s shape, and the
+// Sums `budgeted` across every non-hidden category in a non-hidden,
+// non-income group, from getBudgetMonth(month)'s categoryGroups shape --
+// same double hidden-group/hidden-category skip categories.js already
+// applies to getCategoryGroups()'s shape (a hidden group's categories are
+// dropped entirely, even when a given category itself isn't hidden), and the
 // same group.is_income skip month-end-projection.js already applies to this
 // same getBudgetMonth() shape.
 function sumBudgetedCents(categoryGroups) {
   let total = 0;
   for (const group of categoryGroups || []) {
     if (group.is_income) continue;
+    if (group.hidden) continue;
     for (const category of group.categories || []) {
       if (category.hidden) continue;
       total += category.budgeted ?? 0;
