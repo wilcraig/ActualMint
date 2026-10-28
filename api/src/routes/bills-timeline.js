@@ -51,6 +51,45 @@ function resolvePayeeName(schedule, payeesIndex) {
   return payee && payee.name ? payee.name : '(No payee)';
 }
 
+function rulesById(rules) {
+  return new Map((rules || []).map((r) => [r.id, r]));
+}
+
+// Flattens getCategoryGroups()' nested shape into a categoryId -> groupName
+// map, same fetch-once/index-by-id/join-in-JS pattern as payeesById above
+// (and categories.js's own category flattening). Hidden groups/categories
+// are NOT filtered out here (unlike categories.js/category-groups.js) —
+// this is a best-effort label for an existing schedule, not a picker list,
+// and a schedule tied to a hidden/since-renamed category should still show
+// its group rather than silently go blank.
+function groupNameByCategoryId(categoryGroups) {
+  const map = new Map();
+  for (const group of categoryGroups || []) {
+    for (const category of group.categories || []) {
+      map.set(category.id, group.name);
+    }
+  }
+  return map;
+}
+
+// A schedule's category (when it has one) lives inside its rule's actions,
+// not on the schedule object itself — client.getSchedules() has no category
+// field at all. Resolves via schedule.rule -> rule.actions -> the one
+// {op: 'set', field: 'category'} action, if any. Never throws: a schedule
+// with an unresolvable rule, no category-setting action, or a categoryId
+// that isn't in the current category-groups map (e.g. a hidden/deleted
+// category) is a normal case, not an error — all of those just mean "no
+// group to show," so this returns null rather than surfacing a failure.
+function resolveGroupName(schedule, rulesIndex, groupNameIndex) {
+  const rule = rulesIndex.get(schedule.rule);
+  if (!rule) return null;
+
+  const action = (rule.actions || []).find((a) => a && a.op === 'set' && a.field === 'category');
+  if (!action) return null;
+
+  return groupNameIndex.get(action.value) ?? null;
+}
+
 const router = express.Router();
 
 router.get('/', async (req, res, next) => {
@@ -85,7 +124,7 @@ router.get('/', async (req, res, next) => {
     const client = await getActualClient();
     await syncIfDue(client);
 
-    const [schedules, { data: payees }] = await Promise.all([
+    const [schedules, { data: payees }, rules, categoryGroups] = await Promise.all([
       client.getSchedules(),
       // Same AQL pattern spending-breakdown.js's payee lookup establishes:
       // fetch once, index by id, join in JS. Deliberately NOT
@@ -93,9 +132,17 @@ router.get('/', async (req, res, next) => {
       // already-written schedule amounts and must not risk disagreeing with
       // its closing-date/lag logic.
       client.aqlQuery(q('payees').select('*')),
+      // Additive groupName lookup (Plan 3e task 1): a schedule's category
+      // lives in its rule's actions, not on the schedule itself, so both
+      // rules and category-groups are fetched alongside schedules/payees
+      // and joined in JS below, same Promise.all parallelization as above.
+      client.getRules(),
+      client.getCategoryGroups(),
     ]);
 
     const payeesIndex = payeesById(payees);
+    const rulesIndex = rulesById(rules);
+    const groupNameIndex = groupNameByCategoryId(categoryGroups);
 
     const items = [];
 
@@ -107,6 +154,7 @@ router.get('/', async (req, res, next) => {
       // unlike the pacing/spending-breakdown views, this list intentionally
       // shows both bills (negative) and expected deposits (positive).
       const amountCents = resolveScheduledAmount(schedule.amount);
+      const groupName = resolveGroupName(schedule, rulesIndex, groupNameIndex);
 
       if (typeof schedule.date === 'string') {
         // One-time schedule: a plain 'YYYY-MM-DD' string with its single
@@ -117,13 +165,13 @@ router.get('/', async (req, res, next) => {
         if (!schedule.next_date) continue;
         const nextDate = parseDate(schedule.next_date);
         if (nextDate >= rangeStart && nextDate <= monthEnd) {
-          items.push({ scheduleId: schedule.id, payeeName, date: schedule.next_date, amountCents });
+          items.push({ scheduleId: schedule.id, payeeName, date: schedule.next_date, amountCents, groupName });
         }
       } else {
         // RecurConfig: one item per occurrence date in range.
         const occurrences = expandOccurrences(schedule.date, { start: rangeStart, end: monthEnd });
         for (const occurrence of occurrences) {
-          items.push({ scheduleId: schedule.id, payeeName, date: formatDate(occurrence), amountCents });
+          items.push({ scheduleId: schedule.id, payeeName, date: formatDate(occurrence), amountCents, groupName });
         }
       }
     }

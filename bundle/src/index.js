@@ -13,6 +13,7 @@ import SpendingHeatmap from './widgets/SpendingHeatmap.svelte';
 import SavingsRateGauge from './widgets/SavingsRateGauge.svelte';
 import SpendingSankey from './widgets/SpendingSankey.svelte';
 import SpendingTreemap from './widgets/SpendingTreemap.svelte';
+import SubscriptionRadar from './widgets/SubscriptionRadar.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -193,6 +194,17 @@ mountWidget('{{ACTUALMINT:spending-sankey:', (host) => {
 //   {{ACTUALMINT:spending-treemap:null}}
 mountWidget('{{ACTUALMINT:spending-treemap:', (host) => {
   new SpendingTreemap({ target: host });
+});
+
+// SubscriptionRadar takes no config (mount.js still requires the
+// placeholder's body to parse as JSON, so an empty or missing body like
+// `{{ACTUALMINT:subscription-radar:}}` fails to parse and the widget never
+// mounts). Zero-config -- this month's window out to 30 days, same posture
+// as bills-timeline/spending-treemap. To add this widget, type the
+// following literal text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:subscription-radar:null}}
+mountWidget('{{ACTUALMINT:subscription-radar:', (host) => {
+  new SubscriptionRadar({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

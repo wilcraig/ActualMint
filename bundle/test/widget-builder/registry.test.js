@@ -27,6 +27,7 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     ] },
     { id: 'spending-sankey', label: 'Monthly Sankey (Income → Group → Category)', fields: [] },
     { id: 'spending-treemap', label: 'Spending treemap', fields: [] },
+    { id: 'subscription-radar', label: 'Subscription renewal radar', fields: [] },
     { id: 'spending-heatmap', label: 'Spending intensity calendar heatmap', fields: [
       { key: 'range', type: 'select', label: 'Range', options: [
         { value: 'month', label: 'Last 30 days' },

@@ -89,6 +89,11 @@ export const WIDGET_REGISTRY = [
     fields: [],
   },
   {
+    id: 'subscription-radar',
+    label: 'Subscription renewal radar',
+    fields: [],
+  },
+  {
     id: 'spending-heatmap',
     label: 'Spending intensity calendar heatmap',
     fields: [

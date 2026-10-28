@@ -23,7 +23,7 @@ async function withServer(fn) {
 // table name since the route uses the real (unmocked) `q()` builder from
 // `@actual-app/api` to fetch payees. `getSchedules` is a plain client method
 // (this endpoint reads schedules directly, not via AQL).
-function stubClient({ schedules = [], payees = [] } = {}) {
+function stubClient({ schedules = [], payees = [], rules = [], categoryGroups = [] } = {}) {
   return {
     getSchedules: jest.fn(async () => schedules),
     aqlQuery: jest.fn(async (query) => {
@@ -31,6 +31,8 @@ function stubClient({ schedules = [], payees = [] } = {}) {
       if (table === 'payees') return { data: payees };
       throw new Error(`stubClient: no stubbed response for table "${table}"`);
     }),
+    getRules: jest.fn(async () => rules),
+    getCategoryGroups: jest.fn(async () => categoryGroups),
   };
 }
 
@@ -76,7 +78,7 @@ test('lists a one-time schedule whose next_date falls in the remaining days of t
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items).toEqual([
-      { scheduleId: 'sched1', payeeName: 'Acme Gym', date: '2026-10-30', amountCents: -5000 },
+      { scheduleId: 'sched1', payeeName: 'Acme Gym', date: '2026-10-30', amountCents: -5000, groupName: null },
     ]);
   });
 });
@@ -100,7 +102,7 @@ test('lists a recurring schedule once per occurrence date within the remaining d
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items).toEqual([
-      { scheduleId: 'sched1', payeeName: 'Streaming Service', date: '2026-10-29', amountCents: -2000 },
+      { scheduleId: 'sched1', payeeName: 'Streaming Service', date: '2026-10-29', amountCents: -2000, groupName: null },
     ]);
   });
 });
@@ -334,8 +336,162 @@ test('a one-time schedule with a null next_date is skipped instead of crashing t
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items).toEqual([
-      { scheduleId: 'fine', payeeName: 'Acme Gym', date: '2026-10-28', amountCents: -2000 },
+      { scheduleId: 'fine', payeeName: 'Acme Gym', date: '2026-10-28', amountCents: -2000, groupName: null },
     ]);
+  });
+});
+
+test('a schedule whose rule sets a category resolves groupName from that category\'s group', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'sched1',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          rule: 'rule1',
+          date: '2026-10-30',
+          next_date: '2026-10-30',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+      rules: [
+        {
+          id: 'rule1',
+          actions: [
+            { op: 'set', field: 'payee', value: 'payeeA' },
+            { op: 'set', field: 'category', value: 'catA' },
+          ],
+        },
+      ],
+      categoryGroups: [
+        { id: 'group1', name: 'Subscriptions', categories: [{ id: 'catA', name: 'Streaming' }] },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.items).toEqual([
+      { scheduleId: 'sched1', payeeName: 'Acme Gym', date: '2026-10-30', amountCents: -5000, groupName: 'Subscriptions' },
+    ]);
+  });
+});
+
+test('a schedule whose rule has no category-setting action resolves groupName to null', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'sched1',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          rule: 'rule1',
+          date: '2026-10-30',
+          next_date: '2026-10-30',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+      rules: [{ id: 'rule1', actions: [{ op: 'set', field: 'payee', value: 'payeeA' }] }],
+      categoryGroups: [
+        { id: 'group1', name: 'Subscriptions', categories: [{ id: 'catA', name: 'Streaming' }] },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].groupName).toBeNull();
+  });
+});
+
+test('a schedule whose rule id does not resolve to any rule resolves groupName to null', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'sched1',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          rule: 'missing-rule',
+          date: '2026-10-30',
+          next_date: '2026-10-30',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+      rules: [],
+      categoryGroups: [
+        { id: 'group1', name: 'Subscriptions', categories: [{ id: 'catA', name: 'Streaming' }] },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].groupName).toBeNull();
+  });
+});
+
+test('a schedule whose rule sets a category id absent from the current category groups (e.g. hidden/deleted) resolves groupName to null', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'sched1',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          rule: 'rule1',
+          date: '2026-10-30',
+          next_date: '2026-10-30',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+      rules: [{ id: 'rule1', actions: [{ op: 'set', field: 'category', value: 'gone-category' }] }],
+      categoryGroups: [
+        { id: 'group1', name: 'Subscriptions', categories: [{ id: 'catA', name: 'Streaming' }] },
+      ],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].groupName).toBeNull();
+  });
+});
+
+test('a schedule with no rule at all resolves groupName to null', async () => {
+  getActualClient.mockResolvedValue(
+    stubClient({
+      schedules: [
+        {
+          id: 'sched1',
+          completed: false,
+          amount: -5000,
+          payee: 'payeeA',
+          date: '2026-10-30',
+          next_date: '2026-10-30',
+        },
+      ],
+      payees: [{ id: 'payeeA', name: 'Acme Gym' }],
+    })
+  );
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/bills-timeline?month=2026-10`, { headers: AUTH_HEADERS });
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].groupName).toBeNull();
   });
 });
 
