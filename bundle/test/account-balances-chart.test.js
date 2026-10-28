@@ -129,6 +129,15 @@ function switchToSeparateView(target) {
   separateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
+// RANGES' labels are '1M'/'3M'/'6M'/'1Y'/'All' -- 'all''s own button reads
+// "All", so callers pass the human label exactly as RANGES defines it.
+function switchToRange(target, label) {
+  const button = Array.from(target.querySelectorAll('button.balances-range-button')).find(
+    (b) => b.textContent.trim() === label,
+  );
+  button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
 test('separate view (selectable, no longer the default): one mini area chart per account, each with its own large current-balance figure', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
@@ -360,6 +369,10 @@ test('an account with a matching account-type goal draws a dashed corridor from 
 
   const target = mountChart();
   await flushFake();
+  // The corridor only draws once range is wide enough (1Y/all) -- see the
+  // range-gating tests below -- so switch off the default 1M range first.
+  switchToRange(target, '1Y');
+  await flushFake();
 
   const corridors = target.querySelectorAll('.balances-goal-corridor');
   expect(corridors.length).toBe(1);
@@ -399,6 +412,8 @@ test('an account with no goal draws no corridor, unaffected by a goal on a diffe
 
   const target = mountChart();
   await flushFake();
+  switchToRange(target, '1Y');
+  await flushFake();
 
   const corridors = target.querySelectorAll('.balances-goal-corridor');
   // Only acc2 (index 1, Savings) has a goal -- acc1 (Checking) draws none.
@@ -419,6 +434,8 @@ test('the x-axis extends forward to cover the furthest goal targetDate among sho
   );
 
   const target = mountChart();
+  await flushFake();
+  switchToRange(target, '1Y');
   await flushFake();
 
   const tickLabels = Array.from(target.querySelectorAll('.balances-axis-label--x')).map((el) => el.textContent.trim());
@@ -451,6 +468,8 @@ test("a goal whose targetDate is in the past clamps the corridor's forward end t
 
   const target = mountChart();
   await flushFake();
+  switchToRange(target, '1Y');
+  await flushFake();
 
   const corridor = target.querySelector('.balances-goal-corridor');
   expect(corridor).not.toBeNull();
@@ -475,9 +494,120 @@ test('Separate view never renders a corridor even when a shown account has a goa
 
   const target = mountChart();
   await flushFake();
+  // Prove this against a range where the corridor would otherwise draw.
+  switchToRange(target, '1Y');
+  await flushFake();
 
   switchToSeparateView(target);
   await flushFake();
 
   expect(target.querySelectorAll('.balances-goal-corridor').length).toBe(0);
+});
+
+// --- Finding #3: the corridor (and its x-axis forward-extension) only
+// applies when range is '1Y' or 'all' -- not '1M'/'3M'/'6M', where it would
+// otherwise squash the real balance history into a sliver at the left edge
+// while the corridor dominates the chart. ---
+
+test('with range 1M (the default), a shown account with a matching goal draws no corridor and the x-axis is not extended', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  // No corridor at all.
+  expect(target.querySelectorAll('.balances-goal-corridor').length).toBe(0);
+
+  // And the x-axis is not stretched out to the goal's targetDate -- every
+  // tick stays within the loaded balance history's own 3-day span (Oct
+  // 24-26, 2026), all the same month, exactly as it would with no goals.
+  const tickLabels = Array.from(target.querySelectorAll('.balances-axis-label--x')).map((el) => el.textContent.trim());
+  const months = new Set(tickLabels.map((label) => label.split(' ')[0]));
+  expect(months.size).toBe(1);
+});
+
+test('with range 3M or 6M, a shown account with a matching goal still draws no corridor', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  for (const label of ['3M', '6M']) {
+    switchToRange(target, label);
+    await flushFake();
+    expect(target.querySelectorAll('.balances-goal-corridor').length).toBe(0);
+  }
+});
+
+test("with range 'all', a shown account with a matching goal draws a corridor (same as '1Y')", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+  switchToRange(target, 'All');
+  await flushFake();
+
+  expect(target.querySelectorAll('.balances-goal-corridor').length).toBe(1);
+});
+
+// --- Finding #1: stackedYScale's domain must extend to cover a matched
+// goal's target value, not just the stacked area data -- otherwise a goal
+// whose target is well above the current balance (the normal case) maps to
+// a y-pixel above the domain's max, off the top of the chart entirely. ---
+
+test("a goal target far above the current stacked total still has its corridor endpoint land inside the chart's drawable area", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  // A college-fund-style goal: $5,000 target against a stacked total of a
+  // few hundred dollars (acc1's own $110 + acc2's $505 = $615).
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+  switchToRange(target, '1Y');
+  await flushFake();
+
+  const corridor = target.querySelector('.balances-goal-corridor');
+  expect(corridor).not.toBeNull();
+
+  const { y2 } = parseLinePath(corridor.getAttribute('d'));
+  // MARGIN.top is 16 -- the chart's drawable area starts there. Before the
+  // fix, this target value fell outside stackedYScale's domain entirely,
+  // mapping to a y well above (numerically less than) the plotted area's
+  // top edge -- clipped off-canvas by the root <svg>.
+  expect(y2).toBeGreaterThanOrEqual(16);
 });

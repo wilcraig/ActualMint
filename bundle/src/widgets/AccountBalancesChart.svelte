@@ -61,7 +61,10 @@
   const MINI_WIDTH = 300;
   const MINI_HEIGHT = 72;
 
-  const formatTick = timeFormat('%b %d');
+  // Includes a (short) year, not just month/day -- once the x-axis
+  // extends forward to cover a multi-year-out goal (see allDates below),
+  // a label like "Jan 01" alone gives no way to tell which year it is.
+  const formatTick = timeFormat("%b %d, '%y");
 
   // Request-sequence guard, same pattern as CategoryBreakdownModal.svelte:
   // load() re-fires on every range-button click, and the user can switch
@@ -175,15 +178,25 @@
     return map;
   });
 
-  // Extended, when a shown account has a matching goal, to cover that
-  // goal's own (clamped) targetDate -- so the x-axis stretches forward to
-  // show the milestone corridor (drawn below, Combined view only) even
-  // when its targetDate falls after the loaded balance history's last day.
+  // Per product ruling (final whole-branch review): the milestone corridor
+  // -- and the x-axis forward-extension that exists only to make room for
+  // it -- only makes sense once the selected range is wide enough that the
+  // real balance history isn't squashed into a sliver next to it. '1M',
+  // '3M', and '6M' render exactly as they would with no goals at all.
+  let goalRangeEligible = $derived(range === '1Y' || range === 'all');
+
+  // Extended, when a shown account has a matching goal (and the range is
+  // wide enough, see goalRangeEligible above), to cover that goal's own
+  // (clamped) targetDate -- so the x-axis stretches forward to show the
+  // milestone corridor (drawn below, Combined view only) even when its
+  // targetDate falls after the loaded balance history's last day.
   let allDates = $derived.by(() => {
     if (!data || isEmpty) return [];
     const dates = data.netWorth.map((p) => parseDateOnly(p.date));
-    for (const goal of matchedAccountGoals.values()) {
-      dates.push(clampToToday(parseDateOnly(goal.targetDate)));
+    if (goalRangeEligible) {
+      for (const goal of matchedAccountGoals.values()) {
+        dates.push(clampToToday(parseDateOnly(goal.targetDate)));
+      }
     }
     return dates;
   });
@@ -222,9 +235,34 @@
     return d3Stack().keys(stackKeys)(stackedRows);
   });
 
+  // Each matched goal's "end value in stacked-space" -- base (the layer's
+  // cumulative total below it, same as corridorPathFor computes) plus the
+  // goal's own targetAmountCents -- computed here, ahead of stackedYScale,
+  // so its domain can be extended to cover it. Without this, a goal whose
+  // target is well above the account's current balance (the normal case,
+  // e.g. a college fund) maps to a y-pixel above the domain's max, i.e.
+  // off-canvas: the corridor's whole point (showing where the balance
+  // needs to go) would be invisible. Gated the same way as allDates' own
+  // x-axis extension (see goalRangeEligible above).
+  let goalEndValues = $derived.by(() => {
+    if (!goalRangeEligible || stackedSeries.length === 0) return [];
+    const values = [];
+    for (let index = 0; index < stackKeys.length; index++) {
+      const goal = matchedAccountGoals.get(stackKeys[index]);
+      if (!goal) continue;
+      const layer = stackedSeries[index];
+      const base = layer[layer.length - 1][0];
+      values.push(base + goal.targetAmountCents);
+    }
+    return values;
+  });
+
   let stackedYScale = $derived.by(() => {
     if (stackedSeries.length === 0) return null;
-    let [min, max] = d3Extent(stackedSeries.flatMap((layer) => layer.flatMap((d) => [d[0], d[1]])));
+    let [min, max] = d3Extent([
+      ...stackedSeries.flatMap((layer) => layer.flatMap((d) => [d[0], d[1]])),
+      ...goalEndValues,
+    ]);
     min = Math.min(min, 0);
     // A perfectly flat combined range (e.g. every account holding a steady
     // zero balance) would otherwise collapse scaleLinear's domain to a
@@ -290,7 +328,7 @@
   // to that account's band rather than floating at its raw, unstacked
   // value against the combined scale.
   function corridorPathFor(layer, index) {
-    if (!xScale || !stackedYScale) return null;
+    if (!xScale || !stackedYScale || !goalRangeEligible) return null;
     const account = data.accounts[index];
     const goal = matchedAccountGoals.get(account.id);
     if (!goal) return null;
@@ -436,6 +474,19 @@
       {/each}
 
       {#each stackedSeries as layer, index (stackKeys[index])}
+        {#if corridorPathFor(layer, index)}
+          <path
+            class="balances-goal-corridor"
+            d={corridorPathFor(layer, index)}
+            stroke={labelColorFor(index)}
+            stroke-width="2"
+            stroke-dasharray="4 3"
+            fill="none"
+          />
+        {/if}
+      {/each}
+
+      {#each stackedSeries as layer, index (stackKeys[index])}
         <text
           class="balances-area-combined-label"
           x={WIDTH - MARGIN.right - 12}
@@ -452,19 +503,6 @@
             <tspan class="balances-area-name">{data.accounts[index].name}</tspan>
           {/if}
         </text>
-      {/each}
-
-      {#each stackedSeries as layer, index (stackKeys[index])}
-        {#if corridorPathFor(layer, index)}
-          <path
-            class="balances-goal-corridor"
-            d={corridorPathFor(layer, index)}
-            stroke={labelColorFor(index)}
-            stroke-width="2"
-            stroke-dasharray="4 3"
-            fill="none"
-          />
-        {/if}
       {/each}
 
       {#each xTicks as tick (tick.getTime())}
