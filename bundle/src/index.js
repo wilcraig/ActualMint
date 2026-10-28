@@ -5,6 +5,7 @@ import MonthEndNet from './widgets/MonthEndNet.svelte';
 import PaycheckAlertBanner from './widgets/PaycheckAlertBanner.svelte';
 import BillsTimeline from './widgets/BillsTimeline.svelte';
 import AccountBalancesChart from './widgets/AccountBalancesChart.svelte';
+import UnlinkedTransfers from './widgets/UnlinkedTransfers.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -85,6 +86,14 @@ mountWidget('{{ACTUALMINT:bills-timeline:', (host) => {
 //   {{ACTUALMINT:account-balances:["accountId1","accountId2"]}}
 mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
   new AccountBalancesChart({ target: host, props: { accountIds } });
+});
+
+// UnlinkedTransfers takes no config, same convention as month-end-net and
+// paycheck-alerts above. To add this widget, type the following literal
+// text into an Actual Reports "Text widget":
+//   {{ACTUALMINT:unlinked-transfers:null}}
+mountWidget('{{ACTUALMINT:unlinked-transfers:', (host) => {
+  new UnlinkedTransfers({ target: host });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

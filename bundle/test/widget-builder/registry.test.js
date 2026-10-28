@@ -11,5 +11,6 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     { id: 'account-balances', label: 'Account balances chart', fields: [
       { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
     ] },
+    { id: 'unlinked-transfers', label: 'Unlinked transfers (possible double-counted income/expense)', fields: [] },
   ]);
 });

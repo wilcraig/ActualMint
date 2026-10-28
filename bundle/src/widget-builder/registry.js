@@ -30,4 +30,9 @@ export const WIDGET_REGISTRY = [
       { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
     ],
   },
+  {
+    id: 'unlinked-transfers',
+    label: 'Unlinked transfers (possible double-counted income/expense)',
+    fields: [],
+  },
 ];
