@@ -14,6 +14,7 @@ const unlinkedTransfersRouter = require('./routes/unlinked-transfers');
 const goalsRouter = require('./routes/goals');
 const burnRateRouter = require('./routes/burn-rate');
 const spendingCalendarRouter = require('./routes/spending-calendar');
+const savingsRateRouter = require('./routes/savings-rate');
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/unlinked-transfers', unlinkedTransfersRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/burn-rate', burnRateRouter);
 app.use('/api/spending-calendar', spendingCalendarRouter);
+app.use('/api/savings-rate', savingsRateRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
