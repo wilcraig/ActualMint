@@ -191,3 +191,43 @@ test('a zero-field widget (e.g. month-end-net) is immediately generatable, no pi
 
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe('{{ACTUALMINT:month-end-net:{}}}');
 });
+
+test('a select-type field (account-balances\' labelContent) defaults to its first option and is included in the generated object', async () => {
+  fetchApi.mockResolvedValueOnce(okJson({ categories: [{ id: 'c1', name: 'Groceries' }] })); // pacing-bars' eager load at mount
+  mount();
+  await flush();
+  open();
+  await flush();
+
+  fetchApi.mockResolvedValueOnce(okJson({ accounts: [{ id: 'acc1', name: 'Checking' }] }));
+  const widgetSelect = document.querySelector('.actualmint-wb-field select');
+  widgetSelect.value = 'account-balances';
+  widgetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+
+  const labelSelect = document.querySelectorAll('.actualmint-wb-field select')[1];
+  expect(labelSelect.value).toBe('both');
+
+  // Still blocked on the account-multiselect field, which has no default.
+  expect(document.querySelector('.actualmint-wb-generate').disabled).toBe(true);
+
+  document.querySelector('.actualmint-wb-options input[type="checkbox"]').click();
+  await flush();
+
+  const generateButton = document.querySelector('.actualmint-wb-generate');
+  expect(generateButton.disabled).toBe(false);
+  generateButton.click();
+  await flush();
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
+    '{{ACTUALMINT:account-balances:{"accountIds":["acc1"],"labelContent":"both"}}}',
+  );
+
+  labelSelect.value = 'amount';
+  labelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  generateButton.click();
+  await flush();
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
+    '{{ACTUALMINT:account-balances:{"accountIds":["acc1"],"labelContent":"amount"}}}',
+  );
+});

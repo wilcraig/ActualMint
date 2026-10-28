@@ -78,15 +78,23 @@ mountWidget('{{ACTUALMINT:bills-timeline:', (host) => {
   new BillsTimeline({ target: host });
 });
 
-// AccountBalancesChart's config is an array of account ids to show (empty
-// or omitted means every open account), the same convention as
-// pacing-bars' categoryIds. To show every account, type the following
-// literal text into an Actual Reports "Text widget":
+// AccountBalancesChart's config is EITHER a bare array of account ids
+// (empty or omitted means every open account, the original convention,
+// same as pacing-bars' categoryIds -- kept working for every dashboard
+// that already carries this older, bare-array form) OR an object with an
+// `accountIds` array and a `labelContent` ('both' | 'amount' | 'name',
+// defaulting to 'both') controlling what the combined view's in-band
+// label shows. To show every account with the default label, type the
+// following literal text into an Actual Reports "Text widget":
 //   {{ACTUALMINT:account-balances:[]}}
 // or to show only specific accounts:
 //   {{ACTUALMINT:account-balances:["accountId1","accountId2"]}}
-mountWidget('{{ACTUALMINT:account-balances:', (host, accountIds) => {
-  new AccountBalancesChart({ target: host, props: { accountIds } });
+// or, to also set labelContent:
+//   {{ACTUALMINT:account-balances:{"accountIds":[],"labelContent":"amount"}}}
+mountWidget('{{ACTUALMINT:account-balances:', (host, config) => {
+  const accountIds = Array.isArray(config) ? config : (config?.accountIds ?? []);
+  const labelContent = Array.isArray(config) ? 'both' : (config?.labelContent ?? 'both');
+  new AccountBalancesChart({ target: host, props: { accountIds, labelContent } });
 });
 
 // UnlinkedTransfers takes no config, same convention as month-end-net and

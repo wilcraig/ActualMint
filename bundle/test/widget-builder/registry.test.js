@@ -10,6 +10,11 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     { id: 'bills-timeline', label: 'Bills / autopay timeline', fields: [] },
     { id: 'account-balances', label: 'Account balances chart', fields: [
       { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
+      { key: 'labelContent', type: 'select', label: 'Combined-view band label', options: [
+        { value: 'both', label: 'Balance + account name' },
+        { value: 'amount', label: 'Balance only' },
+        { value: 'name', label: 'Account name only' },
+      ] },
     ] },
     { id: 'unlinked-transfers', label: 'Unlinked transfers (possible double-counted income/expense)', fields: [] },
     { id: 'spending-breakdown-donut', label: 'Spending breakdown donut', fields: [] },

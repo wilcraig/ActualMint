@@ -4,7 +4,9 @@
 
   // An empty array (the default) means "every open account," matching the
   // API's own default when its `accounts` query param is omitted.
-  let { accountIds = [] } = $props();
+  // labelContent controls what the combined view's in-band label shows:
+  // 'both' (the default, amount then name), 'amount', or 'name'.
+  let { accountIds = [], labelContent = 'both' } = $props();
 
   let range = $state('1M');
   // "Combined" (the default) draws every account as its own stacked-area
@@ -349,11 +351,15 @@
           y={layerLabelY(layer)}
           text-anchor="end"
           style:fill={labelColorFor(index)}
-          xml:space="preserve"
         >
-          <tspan class="balances-area-name">{data.accounts[index].name}</tspan><tspan class="balances-area-label"
-            >  {formatCents(layerOwnBalance(index))}</tspan
-          >
+          {#if labelContent !== 'name'}
+            <tspan class="balances-area-label">{formatCents(layerOwnBalance(index))}</tspan>
+          {/if}
+          {#if labelContent === 'both'}
+            <tspan class="balances-area-name" dx="8">{data.accounts[index].name}</tspan>
+          {:else if labelContent === 'name'}
+            <tspan class="balances-area-name">{data.accounts[index].name}</tspan>
+          {/if}
         </text>
       {/each}
 

@@ -149,6 +149,37 @@ test('combined view (the default): a stacked area band per account, each labeled
   // No separate legend -- the in-band name + balance labels are the only
   // way account identity is shown in this view now.
   expect(target.querySelector('.balances-legend')).toBeNull();
+
+  // Default labelContent='both': amount tspan comes first, name tspan
+  // second with a dx gap after it (not a literal space, which SVG would
+  // otherwise collapse).
+  const firstLabelText = target.querySelector('.balances-area-combined-label');
+  const [first, second] = firstLabelText.children;
+  expect(first.classList.contains('balances-area-label')).toBe(true);
+  expect(second.classList.contains('balances-area-name')).toBe(true);
+  expect(second.getAttribute('dx')).toBe('8');
+});
+
+test('labelContent="amount" shows only the balance, no account name, inside each band', async () => {
+  fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
+
+  const target = mountChart({ labelContent: 'amount' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(target.querySelectorAll('.balances-area-label').length).toBe(2);
+  expect(target.querySelectorAll('.balances-area-name').length).toBe(0);
+});
+
+test('labelContent="name" shows only the account name, no balance, inside each band', async () => {
+  fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
+
+  const target = mountChart({ labelContent: 'name' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(target.querySelectorAll('.balances-area-name').length).toBe(2);
+  expect(target.querySelectorAll('.balances-area-label').length).toBe(0);
 });
 
 test('clicking a range button re-fetches with the new range', async () => {

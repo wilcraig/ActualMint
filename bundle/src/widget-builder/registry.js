@@ -28,6 +28,16 @@ export const WIDGET_REGISTRY = [
     label: 'Account balances chart',
     fields: [
       { key: 'accountIds', type: 'account-multiselect', label: 'Accounts' },
+      {
+        key: 'labelContent',
+        type: 'select',
+        label: 'Combined-view band label',
+        options: [
+          { value: 'both', label: 'Balance + account name' },
+          { value: 'amount', label: 'Balance only' },
+          { value: 'name', label: 'Account name only' },
+        ],
+      },
     ],
   },
   {

@@ -105,6 +105,11 @@
       if (isPickerField(field)) {
         values[field.key] = [];
         loadPickerData(field);
+      } else if (field.type === 'select') {
+        // Defaults to its first option rather than left unset, so a
+        // single-choice field never blocks canGenerate the way an
+        // empty multiselect does.
+        values[field.key] = field.options[0]?.value ?? '';
       }
     }
   }
@@ -186,7 +191,16 @@
           {#each selectedWidget.fields as field (field.key)}
             <div class="actualmint-wb-field">
               <span class="actualmint-wb-field-label">{field.label}</span>
-              {#if pickerErrors[field.key]}
+              {#if field.type === 'select'}
+                <select
+                  value={values[field.key]}
+                  onchange={(e) => { values = { ...values, [field.key]: e.target.value }; }}
+                >
+                  {#each field.options as option (option.value)}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+              {:else if pickerErrors[field.key]}
                 <p class="actualmint-wb-error" role="alert">{pickerErrors[field.key]}</p>
               {:else if pickerData[field.key] === null || pickerData[field.key] === undefined}
                 <p class="actualmint-wb-loading">Loading…</p>
