@@ -289,3 +289,96 @@ test('a failed PUT (non-ok response) shows an inline error next to that row, not
   // Not a toast: the message is scoped to this row, not a page-level alert.
   expect(target.querySelectorAll('.goal-row-error').length).toBe(1);
 });
+
+test('clearing an existing goal\'s amount field shows an inline error and never PUTs targetAmountCents: 0', async () => {
+  mockDefaultFetch({
+    goals: [
+      {
+        id: 'goal-1',
+        entityType: 'category',
+        entityId: 'cat-vacation',
+        targetAmountCents: 250000,
+        targetDate: '2027-06-01',
+      },
+    ],
+  });
+
+  const target = mountWidget();
+  await flush();
+  await flush();
+  await flush();
+
+  const amountInput = target.querySelector('.goal-amount-input');
+  amountInput.value = '';
+  amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  await flush();
+
+  const putCall = fetchApi.mock.calls.find(([path, options]) => path === '/api/goals/goal-1' && options?.method === 'PUT');
+  expect(putCall).toBeUndefined();
+
+  const row = target.querySelector('.goal-row');
+  expect(row.querySelector('.goal-row-error')).toBeTruthy();
+  expect(row.querySelector('.goal-row-error').textContent).toContain('greater than zero');
+});
+
+test('clearing an existing goal\'s date field shows an inline error and never PUTs an empty targetDate', async () => {
+  mockDefaultFetch({
+    goals: [
+      {
+        id: 'goal-1',
+        entityType: 'category',
+        entityId: 'cat-vacation',
+        targetAmountCents: 250000,
+        targetDate: '2027-06-01',
+      },
+    ],
+  });
+
+  const target = mountWidget();
+  await flush();
+  await flush();
+  await flush();
+
+  const dateInput = target.querySelector('.goal-date-input');
+  dateInput.value = '';
+  dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  await flush();
+
+  const putCall = fetchApi.mock.calls.find(([path, options]) => path === '/api/goals/goal-1' && options?.method === 'PUT');
+  expect(putCall).toBeUndefined();
+
+  const row = target.querySelector('.goal-row');
+  expect(row.querySelector('.goal-row-error')).toBeTruthy();
+  expect(row.querySelector('.goal-row-error').textContent).toContain('Choose a target date');
+});
+
+test('a goal referencing an unresolvable entityId shows the "(unknown category)"/"(unknown account)" fallback', async () => {
+  mockDefaultFetch({
+    goals: [
+      {
+        id: 'goal-1',
+        entityType: 'category',
+        entityId: 'cat-deleted',
+        targetAmountCents: 100000,
+        targetDate: '2027-02-01',
+      },
+      {
+        id: 'goal-2',
+        entityType: 'account',
+        entityId: 'acct-deleted',
+        targetAmountCents: 200000,
+        targetDate: '2027-03-01',
+      },
+    ],
+  });
+
+  const target = mountWidget();
+  await flush();
+  await flush();
+  await flush();
+
+  expect(target.textContent).toContain('(unknown category)');
+  expect(target.textContent).toContain('(unknown account)');
+});

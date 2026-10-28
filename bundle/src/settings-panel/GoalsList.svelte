@@ -86,6 +86,22 @@
     return entityType === 'category' ? '(unknown category)' : '(unknown account)';
   }
 
+  // Shared by saveGoal()'s and addGoal()'s own failure handling: a non-ok
+  // response's body is, by convention, `{ error: '<message>' }` (see
+  // goals.js's validateGoalBody()/resolve* 400s), but it's still just a
+  // best-effort read -- a non-JSON or differently-shaped body falls back to
+  // the plain status-based message instead of throwing.
+  async function extractErrorMessage(response) {
+    let message = `Save failed (${response.status})`;
+    try {
+      const body = await response.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // Non-JSON error body -- fall back to the status-based message.
+    }
+    return message;
+  }
+
   async function saveGoal(goal) {
     goal.error = null;
     try {
@@ -101,14 +117,7 @@
       });
 
       if (!response.ok) {
-        let message = `Save failed (${response.status})`;
-        try {
-          const body = await response.json();
-          if (body?.error) message = body.error;
-        } catch {
-          // Non-JSON error body -- fall back to the status-based message.
-        }
-        goal.error = message;
+        goal.error = await extractErrorMessage(response);
         goals = goals.map((g) => (g.id === goal.id ? goal : g));
         return;
       }
@@ -121,16 +130,33 @@
     }
   }
 
+  // Marks `goal` with an inline error and leaves it in `goals` without
+  // calling saveGoal() -- used when the edited value fails client-side
+  // validation, same UX as addGoal()'s own guards (inline error, no PUT of
+  // the bad value).
+  function markInvalid(goal, message) {
+    const updated = { ...goal, error: message };
+    goals = goals.map((g) => (g.id === goal.id ? updated : g));
+  }
+
   function handleAmountChange(goal, event) {
     const cents = parseDollarsToCents(event.target.value);
-    if (cents === null) return;
+    if (cents === null || cents <= 0) {
+      markInvalid(goal, 'Enter a target amount greater than zero.');
+      return;
+    }
     const updated = { ...goal, targetAmountCents: cents };
     goals = goals.map((g) => (g.id === goal.id ? updated : g));
     saveGoal(updated);
   }
 
   function handleDateChange(goal, event) {
-    const updated = { ...goal, targetDate: event.target.value };
+    const value = event.target.value;
+    if (!value) {
+      markInvalid(goal, 'Choose a target date.');
+      return;
+    }
+    const updated = { ...goal, targetDate: value };
     goals = goals.map((g) => (g.id === goal.id ? updated : g));
     saveGoal(updated);
   }
@@ -191,14 +217,7 @@
       });
 
       if (!response.ok) {
-        let message = `Save failed (${response.status})`;
-        try {
-          const responseBody = await response.json();
-          if (responseBody?.error) message = responseBody.error;
-        } catch {
-          // Non-JSON error body -- fall back to the status-based message.
-        }
-        newGoalError = message;
+        newGoalError = await extractErrorMessage(response);
         return;
       }
 
