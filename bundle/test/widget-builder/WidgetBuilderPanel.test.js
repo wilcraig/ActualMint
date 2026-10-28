@@ -5,6 +5,26 @@ vi.mock('../../src/api-client', () => ({
   fetchApi: vi.fn(),
 }));
 
+// Adds a synthetic widget with a group-multiselect field alongside the real
+// registry entries, so this suite can exercise the field type without
+// waiting on a real widget (savings-rate gauge, Task 7) to land and without
+// editing registry.js as part of this task.
+vi.mock('../../src/widget-builder/registry', async () => {
+  const actual = await vi.importActual('../../src/widget-builder/registry');
+  return {
+    WIDGET_REGISTRY: [
+      ...actual.WIDGET_REGISTRY,
+      {
+        id: 'test-group-widget',
+        label: 'Test group widget',
+        fields: [
+          { key: 'groupIds', type: 'group-multiselect', label: 'Groups' },
+        ],
+      },
+    ],
+  };
+});
+
 import { fetchApi } from '../../src/api-client';
 
 function mount() {
@@ -190,6 +210,44 @@ test('a zero-field widget (e.g. month-end-net) is immediately generatable, no pi
   await flush();
 
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe('{{ACTUALMINT:month-end-net:{}}}');
+});
+
+test('a group-multiselect field fetches from the groups source and lets multiple groups be toggled', async () => {
+  fetchApi.mockResolvedValueOnce(okJson({ categories: [{ id: 'c1', name: 'Groceries' }] })); // pacing-bars' eager load at mount
+  mount();
+  await flush();
+  open();
+  await flush();
+
+  fetchApi.mockResolvedValueOnce(
+    okJson({
+      groups: [
+        { id: 'g1', name: 'Everyday Expenses' },
+        { id: 'g2', name: 'Fixed Costs' },
+      ],
+    }),
+  );
+  const widgetSelect = document.querySelector('.actualmint-wb-field select');
+  widgetSelect.value = 'test-group-widget';
+  widgetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+
+  expect(fetchApi).toHaveBeenLastCalledWith('/api/category-groups');
+
+  const checkboxes = document.querySelectorAll('.actualmint-wb-options input[type="checkbox"]');
+  expect(checkboxes.length).toBe(2);
+
+  checkboxes[0].click();
+  checkboxes[1].click();
+  await flush();
+
+  const generateButton = document.querySelector('.actualmint-wb-generate');
+  expect(generateButton.disabled).toBe(false);
+  generateButton.click();
+  await flush();
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
+    '{{ACTUALMINT:test-group-widget:["g1","g2"]}}',
+  );
 });
 
 test('a select-type field (account-balances\' labelContent) defaults to its first option and is included in the generated object', async () => {

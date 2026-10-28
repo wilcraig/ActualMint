@@ -40,15 +40,27 @@
   });
 
   function isPickerField(field) {
-    return field.type === 'category-multiselect' || field.type === 'account-multiselect';
+    return field.type === 'category-multiselect'
+      || field.type === 'account-multiselect'
+      || field.type === 'group-multiselect';
   }
+
+  // path/responseKey per picker field type -- group-multiselect fetches from
+  // the dedicated /api/category-groups endpoint rather than deriving groups
+  // from /api/categories' flattened groupName (that route drops hidden
+  // groups and the hidden flag itself, so a client-side dedup can't tell a
+  // hidden group apart from one that doesn't exist).
+  const PICKER_SOURCES = {
+    'category-multiselect': { path: '/api/categories', responseKey: 'categories' },
+    'account-multiselect': { path: '/api/accounts', responseKey: 'accounts' },
+    'group-multiselect': { path: '/api/category-groups', responseKey: 'groups' },
+  };
 
   async function loadPickerData(field) {
     pickerErrors = { ...pickerErrors, [field.key]: null };
     pickerData = { ...pickerData, [field.key]: null };
 
-    const path = field.type === 'category-multiselect' ? '/api/categories' : '/api/accounts';
-    const responseKey = field.type === 'category-multiselect' ? 'categories' : 'accounts';
+    const { path, responseKey } = PICKER_SOURCES[field.type];
 
     let response = null;
     try {
