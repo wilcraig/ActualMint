@@ -98,6 +98,30 @@
     load(range);
   });
 
+  // Goals change rarely, so they're fetched once per mount rather than
+  // re-fetched on every range-button click the way account-balances data
+  // is above -- this effect reads no reactive state in its body, so it
+  // only ever reacts to mount, never to `range` changes. Failures here are
+  // swallowed: the milestone corridor is a supplementary overlay, not core
+  // chart data, so a failed /api/goals fetch just means no corridor draws,
+  // not an error banner replacing the whole balances chart.
+  let goals = $state([]);
+
+  async function loadGoals() {
+    try {
+      const response = await fetchApi('/api/goals');
+      if (!response.ok) return;
+      const body = await response.json();
+      goals = body.goals || [];
+    } catch (err) {
+      // Swallow -- see comment above loadGoals's declaration.
+    }
+  }
+
+  $effect(() => {
+    loadGoals();
+  });
+
   // `date` strings are always `YYYY-MM-DD` (api/src/routes/account-balances.js);
   // parsed as local-calendar-day components rather than via `new Date(str)`
   // to avoid that string form's UTC-midnight parsing.
@@ -119,7 +143,50 @@
   // empty/zero-size SVG.
   let isEmpty = $derived(!data || data.accounts.length === 0 || data.netWorth.length <= 1);
 
-  let allDates = $derived(data && !isEmpty ? data.netWorth.map((p) => parseDateOnly(p.date)) : []);
+  // `today`, local-calendar-day midnight -- same convention
+  // SavingsGoalsThermometers.svelte uses for its own days-remaining
+  // countdown, since neither /api/account-balances nor /api/goals provides
+  // a server "today."
+  function todayMidnight() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  // A goal's targetDate already in the past would otherwise draw the
+  // milestone corridor backwards in time -- clamp its forward end to today
+  // instead.
+  function clampToToday(date) {
+    const today = todayMidnight();
+    return date < today ? today : date;
+  }
+
+  // Account-type goals whose entityId matches one of the accounts the
+  // current load() response actually shows -- a goal on a filtered-out or
+  // closed account draws no corridor.
+  let matchedAccountGoals = $derived.by(() => {
+    if (!data || isEmpty) return new Map();
+    const shownAccountIds = new Set(data.accounts.map((a) => a.id));
+    const map = new Map();
+    for (const goal of goals) {
+      if (goal.entityType === 'account' && shownAccountIds.has(goal.entityId)) {
+        map.set(goal.entityId, goal);
+      }
+    }
+    return map;
+  });
+
+  // Extended, when a shown account has a matching goal, to cover that
+  // goal's own (clamped) targetDate -- so the x-axis stretches forward to
+  // show the milestone corridor (drawn below, Combined view only) even
+  // when its targetDate falls after the loaded balance history's last day.
+  let allDates = $derived.by(() => {
+    if (!data || isEmpty) return [];
+    const dates = data.netWorth.map((p) => parseDateOnly(p.date));
+    for (const goal of matchedAccountGoals.values()) {
+      dates.push(clampToToday(parseDateOnly(goal.targetDate)));
+    }
+    return dates;
+  });
 
   let xScale = $derived.by(() => {
     if (allDates.length === 0) return null;
@@ -212,6 +279,30 @@
   // read well as text at that opacity.
   function labelColorFor(index) {
     return `color-mix(in srgb, ${colorFor(index)} 55%, black 45%)`;
+  }
+
+  // The college-growth milestone corridor for this band's own account, if
+  // it has a matching goal: a dashed line from (today, this account's own
+  // current balance) to (the goal's own, clamped, targetDate,
+  // targetAmountCents). Plotted inside this layer's own stacked band --
+  // offset by `base`, the layer's cumulative total at its last point (i.e.
+  // every account stacked below it) -- so the corridor reads as belonging
+  // to that account's band rather than floating at its raw, unstacked
+  // value against the combined scale.
+  function corridorPathFor(layer, index) {
+    if (!xScale || !stackedYScale) return null;
+    const account = data.accounts[index];
+    const goal = matchedAccountGoals.get(account.id);
+    if (!goal) return null;
+
+    const base = layer[layer.length - 1][0];
+    const startX = xScale(todayMidnight());
+    const startY = stackedYScale(base + layerOwnBalance(index));
+    const targetDate = clampToToday(parseDateOnly(goal.targetDate));
+    const endX = xScale(targetDate);
+    const endY = stackedYScale(base + goal.targetAmountCents);
+
+    return `M ${startX} ${startY} L ${endX} ${endY}`;
   }
 
   // The combined view's own total, shown as a single figure below the
@@ -363,6 +454,19 @@
         </text>
       {/each}
 
+      {#each stackedSeries as layer, index (stackKeys[index])}
+        {#if corridorPathFor(layer, index)}
+          <path
+            class="balances-goal-corridor"
+            d={corridorPathFor(layer, index)}
+            stroke={labelColorFor(index)}
+            stroke-width="2"
+            stroke-dasharray="4 3"
+            fill="none"
+          />
+        {/if}
+      {/each}
+
       {#each xTicks as tick (tick.getTime())}
         <text
           class="balances-axis-label balances-axis-label--x"
@@ -508,6 +612,10 @@
 
   .balances-area {
     stroke-width: 1;
+  }
+
+  .balances-goal-corridor {
+    pointer-events: none;
   }
 
   /* Account name + its own balance, one line, inside its own band. Color

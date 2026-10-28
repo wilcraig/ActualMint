@@ -49,8 +49,33 @@ function mountChart(props = {}) {
   return target;
 }
 
+// `/api/goals` has no dedicated mock in most tests below -- they return the
+// same multiDayPayload() for any URL, which has no `goals` field, so the
+// widget's own `body.goals || []` fallback makes it a harmless empty-goals
+// response that doesn't affect assertions about account-balances data.
+function balanceCallsOnly() {
+  return fetchApi.mock.calls.filter(([url]) => typeof url === 'string' && url.includes('/api/account-balances'));
+}
+
+function parseLinePath(d) {
+  const match = d && d.match(/M\s*([-\d.]+)[,\s]+([-\d.]+)\s*L\s*([-\d.]+)[,\s]+([-\d.]+)/);
+  if (!match) return null;
+  const [, x1, y1, x2, y2] = match;
+  return { x1: Number(x1), y1: Number(y1), x2: Number(x2), y2: Number(y2) };
+}
+
+async function flushFake() {
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(0);
+}
+
 beforeEach(() => {
   fetchApi.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 test('fetches the default 1M range on mount', async () => {
@@ -60,8 +85,12 @@ test('fetches the default 1M range on mount', async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(fetchApi).toHaveBeenCalledTimes(1);
-  expect(fetchApi.mock.calls[0][0]).toContain('range=1M');
+  // Goals are now also fetched once per mount (see the goal-corridor tests
+  // below), so fetchApi's total call count is no longer 1 -- filtered to
+  // just the account-balances calls, this test's own intent is unchanged.
+  const balanceCalls = balanceCallsOnly();
+  expect(balanceCalls).toHaveLength(1);
+  expect(balanceCalls[0][0]).toContain('range=1M');
 });
 
 test('with no accountIds prop, fetches without an accounts filter (every open account)', async () => {
@@ -197,8 +226,12 @@ test('clicking a range button re-fetches with the new range', async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(fetchApi).toHaveBeenCalledTimes(2);
-  expect(fetchApi.mock.calls[1][0]).toContain('range=6M');
+  // See the note on the "fetches the default 1M range on mount" test above
+  // -- filtered to account-balances calls, since goals are now also
+  // fetched (once, on mount) alongside them.
+  const balanceCalls = balanceCallsOnly();
+  expect(balanceCalls).toHaveLength(2);
+  expect(balanceCalls[1][0]).toContain('range=6M');
   expect(sixMonthButton.classList.contains('balances-range-button--active')).toBe(true);
 });
 
@@ -262,7 +295,17 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
     resolveFirst = resolve;
   });
 
-  fetchApi.mockImplementationOnce(() => firstPromise).mockResolvedValueOnce(jsonResponse(multiDayPayload()));
+  // Goals are now also fetched (once, on mount, see loadGoals()) alongside
+  // account-balances -- branch by URL so the "first call returns a pending
+  // promise, second call resolves immediately" sequencing below still
+  // applies specifically to the account-balances calls this test is about,
+  // regardless of where the goals call falls in the interleaving.
+  let balanceCallCount = 0;
+  fetchApi.mockImplementation((url) => {
+    if (url.includes('/api/goals')) return jsonResponse({ goals: [] });
+    balanceCallCount += 1;
+    return balanceCallCount === 1 ? firstPromise : jsonResponse(multiDayPayload());
+  });
 
   const target = mountChart();
   // Let the mount-triggered load() call fetchApi and register as call #1,
@@ -294,4 +337,147 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
   // fully-populated chart with an empty-state render.
   expect(target.querySelectorAll('path.balances-area').length).toBe(2);
   expect(target.textContent).not.toContain('Not enough balance history yet to chart.');
+});
+
+// --- Account-type goal milestone corridor (Combined view only) ---
+//
+// `today` is pinned to the fixture data's own last day (Oct 26, 2026) via
+// fake timers, matching the vi.useFakeTimers()/vi.setSystemTime() pattern
+// savings-goals-thermometers.test.js already uses for the same reason:
+// neither /api/account-balances nor /api/goals provides a server "today."
+
+test('an account with a matching account-type goal draws a dashed corridor from today to (targetDate, targetAmountCents)', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26)); // Oct 26, 2026
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  const corridors = target.querySelectorAll('.balances-goal-corridor');
+  expect(corridors.length).toBe(1);
+
+  const corridor = corridors[0];
+  expect(corridor.getAttribute('stroke-dasharray')).toBeTruthy();
+  // acc1 is index 0 -- jsdom's getComputedStyle never resolves the
+  // --palette-chartQual1 custom property, so colorFor(0) falls back to
+  // FALLBACK_COLORS[0], #2563eb, and labelColorFor(0) mixes that into
+  // "color-mix(...)".
+  expect(corridor.getAttribute('stroke')).toContain('color-mix');
+  expect(corridor.getAttribute('stroke')).toContain('#2563eb');
+
+  const { x1, y1, x2, y2 } = parseLinePath(corridor.getAttribute('d'));
+  // Forward in time ...
+  expect(x2).toBeGreaterThan(x1);
+  // ... and the x-axis stretched out so the domain's max is exactly the
+  // goal's own targetDate: scaleTime always maps a domain's max to its
+  // range's own upper bound, WIDTH (640) - MARGIN.right (16).
+  expect(x2).toBeCloseTo(624, 5);
+  // The $5,000 target is well above acc1's current $110 balance -- higher
+  // on screen means a smaller y pixel value.
+  expect(y2).toBeLessThan(y1);
+});
+
+test('an account with no goal draws no corridor, unaffected by a goal on a different account', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g2', entityType: 'account', entityId: 'acc2', targetAmountCents: 100000, targetDate: '2027-01-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  const corridors = target.querySelectorAll('.balances-goal-corridor');
+  // Only acc2 (index 1, Savings) has a goal -- acc1 (Checking) draws none.
+  expect(corridors.length).toBe(1);
+  expect(corridors[0].getAttribute('stroke')).toContain('#16a34a'); // FALLBACK_COLORS[1]
+});
+
+test('the x-axis extends forward to cover the furthest goal targetDate among shown accounts', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  const tickLabels = Array.from(target.querySelectorAll('.balances-axis-label--x')).map((el) => el.textContent.trim());
+  // Without the goal, every tick falls within the loaded balance history's
+  // own 3-day span (Oct 24-26, 2026) -- all the same month. With the
+  // goal's targetDate (June 2027) pulled into the domain, the x-axis
+  // necessarily spans many months instead.
+  const months = new Set(tickLabels.map((label) => label.split(' ')[0]));
+  expect(months.size).toBeGreaterThan(1);
+
+  // And the corridor itself reaches exactly the plotted area's right edge
+  // (WIDTH 640 - MARGIN.right 16), confirming the domain's max is the
+  // goal's own targetDate, not merely "somewhere past it."
+  const corridor = target.querySelector('.balances-goal-corridor');
+  const { x2 } = parseLinePath(corridor.getAttribute('d'));
+  expect(x2).toBeCloseTo(624, 5);
+});
+
+test("a goal whose targetDate is in the past clamps the corridor's forward end to today, never drawing backwards", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2020-01-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  const corridor = target.querySelector('.balances-goal-corridor');
+  expect(corridor).not.toBeNull();
+
+  const { x1, x2 } = parseLinePath(corridor.getAttribute('d'));
+  // The corridor's forward (target) end clamps to today -- same point as
+  // its start -- rather than extending backward into 2020.
+  expect(x2).toBeCloseTo(x1, 5);
+});
+
+test('Separate view never renders a corridor even when a shown account has a goal', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 26));
+
+  fetchApi.mockImplementation((url) =>
+    url.includes('/api/goals')
+      ? jsonResponse({
+          goals: [{ id: 'g1', entityType: 'account', entityId: 'acc1', targetAmountCents: 500000, targetDate: '2027-06-01' }],
+        })
+      : jsonResponse(multiDayPayload()),
+  );
+
+  const target = mountChart();
+  await flushFake();
+
+  switchToSeparateView(target);
+  await flushFake();
+
+  expect(target.querySelectorAll('.balances-goal-corridor').length).toBe(0);
 });
