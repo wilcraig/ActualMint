@@ -258,7 +258,13 @@ router.get('/', async (req, res, next) => {
     await syncIfDue(client);
 
     const { monthStart, monthEnd } = monthBounds(month);
-    const baseFilter = { date: { $gte: monthStart, $lte: monthEnd }, tombstone: false };
+    // transfer_id: null excludes transfers between accounts at every level
+    // of this drill-down -- a transfer isn't spending, and left in, one
+    // routinely dominates the donut (a single reconciliation/rebalancing
+    // transfer can dwarf real spending categories; this budget's own
+    // "Transfers" category group was 58% of the groups-level total before
+    // this filter).
+    const baseFilter = { date: { $gte: monthStart, $lte: monthEnd }, tombstone: false, transfer_id: null };
 
     if (level === 'transactions') {
       const transactions = await transactionsForCategoryAndPayee(

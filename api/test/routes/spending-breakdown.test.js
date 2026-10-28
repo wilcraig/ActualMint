@@ -92,7 +92,7 @@ test('level=groups aggregates spending by category group, excluding income group
     // test even though the stub above never looks at the filter contents.
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group.is_income': false },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group.is_income': false },
     ]);
     expect(serialized.groupExpressions).toEqual(['category.group']);
     expect(serialized.selectExpressions).toEqual([{ groupId: 'category.group' }, { amountCents: { $sum: '$amount' } }]);
@@ -149,6 +149,7 @@ test('level=groups with groupIds restricts the breakdown to exactly that list of
       {
         date: { $gte: '2026-11-01', $lte: '2026-11-30' },
         tombstone: false,
+        transfer_id: null,
         'category.group.is_income': false,
         'category.group': { $oneof: ['group1', 'group2'] },
       },
@@ -167,7 +168,7 @@ test('level=groups with no groupIds still means every expense group, unchanged f
     await fetch(`${base}/api/spending-breakdown?month=2026-11&level=groups`, { headers: AUTH_HEADERS });
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group.is_income': false },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group.is_income': false },
     ]);
   });
 });
@@ -201,7 +202,7 @@ test('level=categories with categoryIds restricts to exactly that arbitrary list
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: { $oneof: ['catA', 'catB'] } },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: { $oneof: ['catA', 'catB'] } },
     ]);
     expect(serialized.groupExpressions).toEqual(['category']);
   });
@@ -260,7 +261,7 @@ test('level=categories aggregates spending by category within the given group', 
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, 'category.group': 'group1' },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group': 'group1' },
     ]);
     expect(serialized.groupExpressions).toEqual(['category']);
     expect(serialized.selectExpressions).toEqual([{ categoryId: 'category' }, { amountCents: { $sum: '$amount' } }]);
@@ -303,7 +304,7 @@ test('level=payees aggregates spending by payee within the given category', asyn
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA' },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA' },
     ]);
     expect(serialized.groupExpressions).toEqual(['payee']);
     expect(serialized.selectExpressions).toEqual([{ payeeId: 'payee' }, { amountCents: { $sum: '$amount' } }]);
@@ -334,7 +335,7 @@ test('level=transactions returns individual transaction line items for a (catego
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA', payee: 'payeeA' },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA', payee: 'payeeA' },
     ]);
   });
 });
@@ -353,7 +354,7 @@ test('level=transactions with payeeId=__none__ filters to the no-payee bucket (p
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, category: 'catA', payee: null },
+      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA', payee: null },
     ]);
   });
 });
