@@ -23,7 +23,7 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
     ] },
     { id: 'burn-rate', label: 'Cumulative burn rate (pacing slope)', fields: [] },
     { id: 'savings-rate-gauge', label: 'Net savings rate gauge', fields: [
-      { key: 'investmentGroupIds', type: 'group-multiselect', label: 'Count as savings (not spending)' },
+      { key: 'investmentGroupIds', type: 'group-multiselect', label: 'Count as savings (not spending)', optional: true },
     ] },
     { id: 'spending-heatmap', label: 'Spending intensity calendar heatmap', fields: [
       { key: 'range', type: 'select', label: 'Range', options: [

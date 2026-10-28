@@ -12,6 +12,14 @@ vi.mock('../src/redirect', () => ({
   }),
 }));
 vi.mock('../src/widgets/PacingBars.svelte', () => ({ default: class {} }));
+let lastSpendingHeatmapProps = null;
+vi.mock('../src/widgets/SpendingHeatmap.svelte', () => ({
+  default: class {
+    constructor({ props }) {
+      lastSpendingHeatmapProps = props;
+    }
+  },
+}));
 vi.mock('../src/widget-builder/mount-toolbar', () => ({ mountWidgetBuilderPanel: vi.fn() }));
 vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
 vi.mock('../src/settings-panel/mount-settings', () => ({ mountSettingsSection: vi.fn() }));
@@ -47,4 +55,31 @@ test('mountSettingsSection is called to mount the settings-page section', async 
   await import('../src/index.js');
 
   expect(mountSettingsSection).toHaveBeenCalled();
+});
+
+// Regression test for a final-review finding: the widget builder has exactly
+// one field for spending-heatmap, so buildPlaceholder's single-field
+// convention emits the bare string "year" rather than {"range":"year"} -- the
+// mount callback must accept both shapes, not just the object one a human
+// hand-typing the placeholder would reach for.
+test('spending-heatmap mount callback accepts both a bare range string (builder output) and a {range} object', async () => {
+  vi.resetModules();
+  lastSpendingHeatmapProps = null;
+
+  const { mountWidget } = await import('../src/mount');
+  await import('../src/index.js');
+
+  const heatmapCall = mountWidget.mock.calls.find(
+    ([prefix]) => prefix === '{{ACTUALMINT:spending-heatmap:',
+  );
+  const [, callback] = heatmapCall;
+
+  callback(document.createElement('div'), 'year');
+  expect(lastSpendingHeatmapProps).toEqual({ range: 'year' });
+
+  callback(document.createElement('div'), { range: 'year' });
+  expect(lastSpendingHeatmapProps).toEqual({ range: 'year' });
+
+  callback(document.createElement('div'), {});
+  expect(lastSpendingHeatmapProps).toEqual({ range: 'month' });
 });

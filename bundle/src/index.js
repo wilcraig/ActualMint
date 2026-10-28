@@ -142,16 +142,19 @@ mountWidget('{{ACTUALMINT:burn-rate:', (host) => {
   new BurnRateChart({ target: host });
 });
 
-// SpendingHeatmap's config is an object with a `range` of 'month' (the
-// default, last 30 days) or 'year' (last 12 months) -- same `select`-field
-// convention as account-balances' labelContent. To show the default
-// 30-day view, type the following literal text into an Actual Reports
-// "Text widget":
+// SpendingHeatmap's config is EITHER a bare 'month'/'year' string (the form
+// the widget builder emits, since this widget has exactly one field -- see
+// buildPlaceholder's single-field convention) OR an object with a `range`
+// key, same two-shapes pattern account-balances' accountIds/config already
+// establishes. 'month' is the default (last 30 days), 'year' is the last 12
+// months. To show the default 30-day view, type the following literal text
+// into an Actual Reports "Text widget":
 //   {{ACTUALMINT:spending-heatmap:{}}}
-// or to show the last 12 months:
+// or to show the last 12 months (either shape):
+//   {{ACTUALMINT:spending-heatmap:"year"}}
 //   {{ACTUALMINT:spending-heatmap:{"range":"year"}}}
 mountWidget('{{ACTUALMINT:spending-heatmap:', (host, config) => {
-  const range = config?.range ?? 'month';
+  const range = typeof config === 'string' ? config : (config?.range ?? 'month');
   new SpendingHeatmap({ target: host, props: { range } });
 });
 

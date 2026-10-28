@@ -158,7 +158,9 @@
   let canGenerate = $derived(
     selectedWidget
       ? selectedWidget.fields.length === 0
-        || selectedWidget.fields.every((field) => (values[field.key] ?? []).length > 0)
+        || selectedWidget.fields.every(
+          (field) => field.optional || (values[field.key] ?? []).length > 0,
+        )
       : false,
   );
 

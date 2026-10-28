@@ -250,6 +250,29 @@ test('a group-multiselect field fetches from the groups source and lets multiple
   );
 });
 
+test('an optional group-multiselect field (e.g. savings-rate-gauge\'s investmentGroupIds) does not block Generate while empty', async () => {
+  fetchApi.mockResolvedValueOnce(okJson({ categories: [{ id: 'c1', name: 'Groceries' }] })); // pacing-bars' eager load at mount
+  mount();
+  await flush();
+  open();
+  await flush();
+
+  fetchApi.mockResolvedValueOnce(okJson({ groups: [] }));
+  const widgetSelect = document.querySelector('.actualmint-wb-field select');
+  widgetSelect.value = 'savings-rate-gauge';
+  widgetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+
+  const generateButton = document.querySelector('.actualmint-wb-generate');
+  expect(generateButton.disabled).toBe(false);
+
+  generateButton.click();
+  await flush();
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
+    '{{ACTUALMINT:savings-rate-gauge:[]}}',
+  );
+});
+
 test('a select-type field (account-balances\' labelContent) defaults to its first option and is included in the generated object', async () => {
   fetchApi.mockResolvedValueOnce(okJson({ categories: [{ id: 'c1', name: 'Groceries' }] })); // pacing-bars' eager load at mount
   mount();

@@ -66,7 +66,16 @@ export const WIDGET_REGISTRY = [
     id: 'savings-rate-gauge',
     label: 'Net savings rate gauge',
     fields: [
-      { key: 'investmentGroupIds', type: 'group-multiselect', label: 'Count as savings (not spending)' },
+      {
+        key: 'investmentGroupIds',
+        type: 'group-multiselect',
+        label: 'Count as savings (not spending)',
+        // No investment groups configured is this widget's own recommended
+        // default (see index.js's mount comment) -- never a fallback for a
+        // field the user forgot to fill in -- so canGenerate must not block
+        // Generate on it staying empty the way every other picker field does.
+        optional: true,
+      },
     ],
   },
   {
