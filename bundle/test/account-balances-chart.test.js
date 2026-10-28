@@ -93,11 +93,21 @@ function switchToCombinedView(target) {
   combinedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
-test('separate view (the default): one mini area chart per account, each with its own large current-balance figure', async () => {
+function switchToSeparateView(target) {
+  const separateButton = Array.from(target.querySelectorAll('button.balances-range-button')).find(
+    (b) => b.textContent.trim() === 'Separate',
+  );
+  separateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+test('separate view (selectable, no longer the default): one mini area chart per account, each with its own large current-balance figure', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
   const target = mountChart();
   await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  switchToSeparateView(target);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   // 2 accounts + 1 Total card.
@@ -110,17 +120,14 @@ test('separate view (the default): one mini area chart per account, each with it
   expect(values).toContain('$615.00'); // Total/net worth's latest balance, 61500 cents
 
   // No combined-view elements rendered at the same time.
-  expect(target.querySelector('path.balances-line')).toBeNull();
+  expect(target.querySelector('path.balances-area')).toBeNull();
 });
 
-test('combined view: a stacked area band per account, each labeled with its own (not cumulative) balance, plus a total below the chart', async () => {
+test('combined view (the default): a stacked area band per account, each labeled with its own (not cumulative) balance, plus a total below the chart', async () => {
   fetchApi.mockResolvedValue(jsonResponse(multiDayPayload()));
 
   const target = mountChart();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  switchToCombinedView(target);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   const areas = target.querySelectorAll('path.balances-area');
@@ -236,8 +243,8 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  // 2 accounts + 1 Total card, in the default separate view.
-  expect(target.querySelectorAll('.balances-mini-card').length).toBe(3);
+  // 2 accounts, in the default combined (stacked-area) view.
+  expect(target.querySelectorAll('path.balances-area').length).toBe(2);
 
   resolveFirst(
     jsonResponse({
@@ -252,6 +259,6 @@ test('a slower in-flight request that resolves after a newer one does not clobbe
 
   // The stale (single-day) response must not have overwritten the newer,
   // fully-populated chart with an empty-state render.
-  expect(target.querySelectorAll('.balances-mini-card').length).toBe(3);
+  expect(target.querySelectorAll('path.balances-area').length).toBe(2);
   expect(target.textContent).not.toContain('Not enough balance history yet to chart.');
 });

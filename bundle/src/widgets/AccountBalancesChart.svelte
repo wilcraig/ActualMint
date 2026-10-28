@@ -7,14 +7,12 @@
   let { accountIds = [] } = $props();
 
   let range = $state('1M');
-  // "Separate" (the default) draws one small area chart per account, each
-  // with its own y-scale fit to just that account's own balance range, plus
-  // the account's current balance in large text -- this is the fix for the
-  // widget being hard to read: a single shared y-scale across every account
-  // (the old, and still-available, "Combined" view) flattens any account
-  // whose balance is small next to one that's large into a barely-visible
-  // line. "Combined" is kept for anyone who wants the overlay instead.
-  let view = $state('separate');
+  // "Combined" (the default) draws every account as its own stacked-area
+  // band, each labeled with its own name and current balance (never a
+  // shared/flattened scale, since each band's label is just that
+  // account's own figure, not a y-axis reading) -- "Separate" is kept for
+  // anyone who prefers one small area chart per account instead.
+  let view = $state('combined');
   let data = $state(null);
   let errorMessage = $state(null);
 
