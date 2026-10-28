@@ -37,6 +37,7 @@ test('shows a clean "no goals yet" message when GET /api/goals returns an empty 
   await flush();
 
   expect(target.textContent).toContain('No savings goals yet');
+  expect(target.textContent).toContain('Settings');
 });
 
 test('renders one thermometer per goal-tracked category, filled proportionally to current/target', async () => {
@@ -194,6 +195,33 @@ test('a goal whose category is no longer carryoverEnabled (changed after the goa
   expect(Number.isNaN(widthPct)).toBe(false);
   expect(widthPct).toBeGreaterThanOrEqual(0);
   expect(widthPct).toBeLessThanOrEqual(100);
+});
+
+test('a zero (or already-exceeded) target clamps fill to 100%, since the goal is trivially met', async () => {
+  fetchApi.mockImplementation((path) => {
+    if (path === '/api/goals') {
+      return Promise.resolve(
+        jsonResponse({
+          goals: [{ id: 'g1', entityType: 'category', entityId: 'catA', targetAmountCents: 0, targetDate: '2026-12-01' }],
+        })
+      );
+    }
+    if (typeof path === 'string' && path.startsWith('/api/budget-pacing')) {
+      return Promise.resolve(
+        jsonResponse({
+          categories: [{ id: 'catA', name: 'Already Funded', groupId: 'grp1', groupName: 'Savings', budgeted: 0, spent: 0, balance: 500 }],
+        })
+      );
+    }
+    return Promise.resolve(jsonResponse(null, false, 404));
+  });
+
+  const target = mountWidget();
+  await flush();
+
+  const fill = target.querySelector('.goals-thermo-fill');
+  expect(fill).not.toBeNull();
+  expect(fill.style.width).toBe('100%');
 });
 
 test('renders the inline error treatment on a non-ok /api/goals response', async () => {

@@ -46,8 +46,13 @@
   // flag changed after its goal was created) -- never NaN, never negative,
   // never over 100.
   function fillPct(balance, targetAmountCents) {
-    if (!Number.isFinite(balance) || !Number.isFinite(targetAmountCents) || targetAmountCents <= 0) {
+    if (!Number.isFinite(balance) || !Number.isFinite(targetAmountCents)) {
       return 0;
+    }
+    // A zero (or negative) target means the goal is trivially already met --
+    // render it as fully funded rather than as an empty bar.
+    if (targetAmountCents <= 0) {
+      return 100;
     }
     const pct = (balance / targetAmountCents) * 100;
     if (!Number.isFinite(pct)) return 0;
@@ -95,6 +100,10 @@
       const categoryById = new Map((pacingBody.categories || []).map((c) => [c.id, c]));
 
       rows = categoryGoals.map((goal) => {
+        // A goal's entityId absent from the budget-pacing response (e.g. the
+        // category was deleted) is silently shown as $0 balance, matching
+        // budget-pacing.js's own documented "requested id absent -> silently
+        // omitted" convention rather than surfacing an error for one row.
         const category = categoryById.get(goal.entityId);
         const balance = category?.balance ?? 0;
         return {
@@ -125,7 +134,7 @@
   {:else if rows === null}
     <p class="goals-thermo-loading">Loading savings goals…</p>
   {:else if rows.length === 0}
-    <p class="goals-thermo-empty">No savings goals yet.</p>
+    <p class="goals-thermo-empty">No savings goals yet — add one in Settings.</p>
   {:else}
     {#each rows as row (row.id)}
       <div class="goals-thermo-row">
