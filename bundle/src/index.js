@@ -9,6 +9,7 @@ import UnlinkedTransfers from './widgets/UnlinkedTransfers.svelte';
 import SpendingBreakdownDonut from './widgets/SpendingBreakdownDonut.svelte';
 import SavingsGoalsThermometers from './widgets/SavingsGoalsThermometers.svelte';
 import BurnRateChart from './widgets/BurnRateChart.svelte';
+import SpendingHeatmap from './widgets/SpendingHeatmap.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
@@ -138,6 +139,19 @@ mountWidget('{{ACTUALMINT:savings-goals-thermometers:', (host, categoryIds) => {
 //   {{ACTUALMINT:burn-rate:null}}
 mountWidget('{{ACTUALMINT:burn-rate:', (host) => {
   new BurnRateChart({ target: host });
+});
+
+// SpendingHeatmap's config is an object with a `range` of 'month' (the
+// default, last 30 days) or 'year' (last 12 months) -- same `select`-field
+// convention as account-balances' labelContent. To show the default
+// 30-day view, type the following literal text into an Actual Reports
+// "Text widget":
+//   {{ACTUALMINT:spending-heatmap:{}}}
+// or to show the last 12 months:
+//   {{ACTUALMINT:spending-heatmap:{"range":"year"}}}
+mountWidget('{{ACTUALMINT:spending-heatmap:', (host, config) => {
+  const range = config?.range ?? 'month';
+  new SpendingHeatmap({ target: host, props: { range } });
 });
 
 // Panel mounting has no dependency on sessionStorage, so it stays outside

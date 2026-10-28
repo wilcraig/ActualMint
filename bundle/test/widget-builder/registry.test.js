@@ -22,5 +22,11 @@ test('registers every widget with a mount.js consumer, and nothing unimplemented
       { key: 'categoryIds', type: 'category-multiselect', label: 'Categories' },
     ] },
     { id: 'burn-rate', label: 'Cumulative burn rate (pacing slope)', fields: [] },
+    { id: 'spending-heatmap', label: 'Spending intensity calendar heatmap', fields: [
+      { key: 'range', type: 'select', label: 'Range', options: [
+        { value: 'month', label: 'Last 30 days' },
+        { value: 'year', label: 'Last 12 months' },
+      ] },
+    ] },
   ]);
 });

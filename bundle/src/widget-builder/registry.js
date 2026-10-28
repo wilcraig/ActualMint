@@ -62,4 +62,19 @@ export const WIDGET_REGISTRY = [
     label: 'Cumulative burn rate (pacing slope)',
     fields: [],
   },
+  {
+    id: 'spending-heatmap',
+    label: 'Spending intensity calendar heatmap',
+    fields: [
+      {
+        key: 'range',
+        type: 'select',
+        label: 'Range',
+        options: [
+          { value: 'month', label: 'Last 30 days' },
+          { value: 'year', label: 'Last 12 months' },
+        ],
+      },
+    ],
+  },
 ];
