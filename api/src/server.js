@@ -10,8 +10,13 @@ const categoriesRouter = require('./routes/categories');
 const accountsRouter = require('./routes/accounts');
 const accountBalancesRouter = require('./routes/account-balances');
 const unlinkedTransfersRouter = require('./routes/unlinked-transfers');
+const goalsRouter = require('./routes/goals');
 
 const app = express();
+
+// No route needed a request body until goals' PUT; every /api/* route gets
+// this for free, same as requireAuth below.
+app.use(express.json());
 
 // Actual's own client sends its session token as `X-ACTUAL-TOKEN` (see
 // auth.js for the confirmed mechanism). Require a valid one on every
@@ -36,6 +41,7 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/account-balances', accountBalancesRouter);
 app.use('/api/unlinked-transfers', unlinkedTransfersRouter);
+app.use('/api/goals', goalsRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
