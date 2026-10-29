@@ -1,5 +1,10 @@
 # ActualMint
 
+> **Built with Claude.** ActualMint was written largely with
+> [Claude](https://claude.com/claude-code), Anthropic's AI coding assistant.
+> A human guided the design throughout, reviewed the changes, and verified
+> the results against a real budget along the way.
+
 ActualMint adds a Mint/Simplifi-style layer on top of a self-hosted
 [Actual Budget](https://actualbudget.org) instance:
 
