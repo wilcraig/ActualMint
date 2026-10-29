@@ -1,13 +1,12 @@
 <script>
-  import { sankey as d3SankeyLayout, sankeyLinkHorizontal } from 'd3-sankey';
+  import { sankey as d3SankeyLayout, sankeyLeft, sankeyLinkHorizontal } from 'd3-sankey';
   import { fetchApi } from '../api-client';
 
-  // Same categorical chart palette + fallback every other widget uses
-  // (AccountBalancesChart.svelte's convention) -- category and merchant
-  // nodes under a group share that group's color, same as the donut/
-  // treemap convention this plan's sibling task also uses.
   const CHART_QUAL_COUNT = 9;
   const FALLBACK_COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
+  const INCOME_COLOR = '#0ea5e9';
+  const SAVINGS_COLOR = '#22c55e';
+  const SHORTFALL_COLOR = '#9ca3af';
 
   function colorFor(index) {
     try {
@@ -15,210 +14,206 @@
       const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
       if (value) return value;
     } catch {
-      // getComputedStyle can be unavailable in some test/SSR contexts --
-      // fall through to the static fallback below.
+      // getComputedStyle can be unavailable in some test/SSR contexts.
     }
     return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   }
 
-  // Zero-config, current-month only, same posture as burn-rate/month-end-net.
   function currentMonth() {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  let groups = $state(null); // null while loading; [] when the month has no spending
-  let categoriesByGroup = $state(null); // { [groupId]: slices[] }
-  let payeesByCategory = $state({}); // { [categoryId]: slices[] } -- only present for expanded categories
+  let flow = $state(null); // /api/cash-flow response; null while loading
+  let payeesByCategory = $state({});
   let expandedCategoryIds = $state(new Set());
   let errorMessage = $state(null);
-
-  // Request-sequence guard, same pattern as CategoryBreakdownModal.svelte /
-  // AccountBalancesChart.svelte: load() can in principle re-fire (e.g. a
-  // future month picker), and a slower in-flight request shouldn't clobber
-  // a newer one's result.
-  let loadSeq = 0;
+  let containerWidth = $state(0);
 
   async function load() {
-    const seq = ++loadSeq;
-    errorMessage = null;
-    groups = null;
-    categoriesByGroup = null;
-    payeesByCategory = {};
-    expandedCategoryIds = new Set();
-
     try {
-      const month = currentMonth();
-      const groupsResponse = await fetchApi(`/api/spending-breakdown?month=${month}&level=groups`);
-      if (seq !== loadSeq) return;
-
-      if (!groupsResponse.ok) {
-        errorMessage = `Sankey unavailable (${groupsResponse.status})`;
+      const response = await fetchApi(`/api/cash-flow?month=${currentMonth()}`);
+      if (!response.ok) {
+        errorMessage = `Sankey unavailable (${response.status})`;
         return;
       }
-
-      const groupsData = await groupsResponse.json();
-      if (seq !== loadSeq) return;
-
-      if (groupsData.slices.length === 0) {
-        groups = [];
-        return;
-      }
-
-      // Categories for every group are fetched in parallel, not one at a
-      // time -- there's no ordering dependency between them.
-      const categoryEntries = await Promise.all(
-        groupsData.slices.map(async (group) => {
-          const response = await fetchApi(`/api/spending-breakdown?month=${month}&level=categories&groupId=${group.id}`);
-          if (!response.ok) {
-            throw new Error(`categories fetch failed (${response.status})`);
-          }
-          const data = await response.json();
-          return [group.id, data.slices];
-        }),
-      );
-      if (seq !== loadSeq) return;
-
-      categoriesByGroup = Object.fromEntries(categoryEntries);
-      groups = groupsData.slices;
+      flow = await response.json();
     } catch {
-      if (seq !== loadSeq) return;
       errorMessage = 'Sankey unavailable: could not reach actualmint-api.';
     }
   }
 
   load();
 
-  // Clicking an unexpanded category fetches its payees and merges a 4th
-  // merchant column into the graph; clicking an already-expanded one
-  // removes that category's merchant nodes/links instead of re-fetching
-  // (no duplication on a second click).
+  // Clicking a category adds a merchant column for it; clicking again removes it.
   async function toggleCategory(categoryId) {
     if (expandedCategoryIds.has(categoryId)) {
       const next = new Set(expandedCategoryIds);
       next.delete(categoryId);
       expandedCategoryIds = next;
-
       const nextPayees = { ...payeesByCategory };
       delete nextPayees[categoryId];
       payeesByCategory = nextPayees;
       return;
     }
 
-    const next = new Set(expandedCategoryIds);
-    next.add(categoryId);
-    expandedCategoryIds = next;
-
-    try {
-      const month = currentMonth();
-      const response = await fetchApi(`/api/spending-breakdown?month=${month}&level=payees&categoryId=${categoryId}`);
-      if (!response.ok) {
-        const reverted = new Set(expandedCategoryIds);
-        reverted.delete(categoryId);
-        expandedCategoryIds = reverted;
-        return;
-      }
-      const data = await response.json();
-      payeesByCategory = { ...payeesByCategory, [categoryId]: data.slices };
-    } catch {
+    expandedCategoryIds = new Set(expandedCategoryIds).add(categoryId);
+    const revert = () => {
       const reverted = new Set(expandedCategoryIds);
       reverted.delete(categoryId);
       expandedCategoryIds = reverted;
+    };
+    try {
+      const response = await fetchApi(`/api/spending-breakdown?month=${currentMonth()}&level=payees&categoryId=${categoryId}`);
+      if (!response.ok) return revert();
+      const data = await response.json();
+      payeesByCategory = { ...payeesByCategory, [categoryId]: data.slices };
+    } catch {
+      revert();
     }
   }
 
-  const WIDTH = 720;
-  const HEIGHT = 420;
-  const NODE_WIDTH = 16;
-  const NODE_PADDING = 10;
+  const NODE_WIDTH = 12;
+  const NODE_PADDING = 22;
+  const FLOW_HEIGHT = 320; // vertical room left for the flows themselves, beyond node padding
+  const LABEL_MARGIN = 240; // right-hand room for the last column's labels
 
-  let isEmpty = $derived(groups !== null && groups.length === 0);
-  let isLoading = $derived(groups === null && !errorMessage);
+  let isLoading = $derived(flow === null && !errorMessage);
+  let isEmpty = $derived(flow !== null && flow.incomeCents === 0 && flow.spendingCents === 0);
 
-  // Builds the {nodes, links} graph and runs it through d3-sankey's layout
-  // -- real connecting flow curves via sankeyLinkHorizontal(), not the
-  // mockup's disconnected boxes. Node values are floored at 1 cent so a
-  // zero-amount slice (shouldn't happen -- the API excludes those -- but
-  // guards the degenerate case anyway) never collapses a link's width to 0
-  // and breaks the layout.
   let graph = $derived.by(() => {
-    if (!groups || groups.length === 0 || !categoriesByGroup) return null;
+    if (!flow || isEmpty) return null;
 
-    const nodes = [{ id: 'income', label: 'Income', colorIndex: -1 }];
+    const nodes = [];
     const links = [];
+    const shortfallCents = Math.max(flow.spendingCents - flow.incomeCents, 0);
+    const savedCents = Math.max(flow.incomeCents - flow.spendingCents, 0);
+    const totalCents = flow.incomeCents + shortfallCents;
 
-    groups.forEach((group, groupIndex) => {
+    flow.income.forEach((source, index) => {
+      nodes.push({ id: `src:${source.id}`, label: source.label, color: INCOME_COLOR, order: index });
+      links.push({ source: `src:${source.id}`, target: 'income', value: source.amountCents });
+    });
+    if (shortfallCents > 0) {
+      nodes.push({ id: 'src:shortfall', label: 'From savings', color: SHORTFALL_COLOR, order: flow.income.length });
+      links.push({ source: 'src:shortfall', target: 'income', value: shortfallCents });
+    }
+
+    nodes.push({ id: 'income', label: flow.incomeCents > 0 ? 'Income' : 'Spending', color: INCOME_COLOR, order: 0 });
+
+    if (savedCents > 0) {
+      nodes.push({ id: 'savings', label: 'Saved', color: SAVINGS_COLOR, order: -1 });
+      links.push({ source: 'income', target: 'savings', value: savedCents });
+    }
+
+    flow.groups.forEach((group, groupIndex) => {
+      const color = colorFor(groupIndex);
       const groupNodeId = `group:${group.id}`;
-      nodes.push({ id: groupNodeId, label: group.label, colorIndex: groupIndex });
-      links.push({ source: 'income', target: groupNodeId, value: Math.max(group.amountCents, 1) });
+      nodes.push({ id: groupNodeId, label: group.label, color, order: groupIndex });
+      links.push({ source: 'income', target: groupNodeId, value: group.amountCents });
 
-      const categories = categoriesByGroup[group.id] || [];
-      categories.forEach((category) => {
+      group.categories.forEach((category, categoryIndex) => {
+        const order = groupIndex * 1000 + categoryIndex;
         const catNodeId = `cat:${category.id}`;
-        nodes.push({ id: catNodeId, label: category.label, colorIndex: groupIndex, categoryId: category.id });
-        links.push({ source: groupNodeId, target: catNodeId, value: Math.max(category.amountCents, 1) });
+        nodes.push({ id: catNodeId, label: category.label, color, order, categoryId: category.id });
+        links.push({ source: groupNodeId, target: catNodeId, value: category.amountCents });
 
         const payees = expandedCategoryIds.has(category.id) ? payeesByCategory[category.id] : null;
-        if (payees) {
-          payees.forEach((payee) => {
-            const merchantNodeId = `merchant:${category.id}:${payee.id}`;
-            nodes.push({ id: merchantNodeId, label: payee.label, colorIndex: groupIndex, merchant: true });
-            links.push({ source: catNodeId, target: merchantNodeId, value: Math.max(payee.amountCents, 1) });
-          });
-        }
+        (payees || []).forEach((payee, payeeIndex) => {
+          const merchantNodeId = `merchant:${category.id}:${payee.id}`;
+          nodes.push({ id: merchantNodeId, label: payee.label, color, order: order * 1000 + payeeIndex });
+          links.push({ source: catNodeId, target: merchantNodeId, value: Math.max(payee.amountCents, 1) });
+        });
       });
     });
 
+    const width = Math.max(containerWidth || 900, 600);
+    // Size the chart so the densest column's padding never eats the flow
+    // area -- a fixed height is what collapsed every link to a hairline.
+    const maxColumn = Math.max(
+      flow.income.length + (shortfallCents > 0 ? 1 : 0),
+      flow.groups.length + (savedCents > 0 ? 1 : 0),
+      flow.groups.reduce((n, g) => n + g.categories.length, 0),
+      Object.values(payeesByCategory).reduce((n, p) => n + p.length, 0),
+    );
+    const height = Math.max(360, maxColumn * NODE_PADDING + FLOW_HEIGHT);
+
     const layout = d3SankeyLayout()
       .nodeId((d) => d.id)
+      .nodeAlign(sankeyLeft)
       .nodeWidth(NODE_WIDTH)
       .nodePadding(NODE_PADDING)
+      .nodeSort((a, b) => a.order - b.order)
       .extent([
-        [1, 1],
-        [WIDTH - 1, HEIGHT - 1],
+        [1, 12],
+        [width - LABEL_MARGIN, height - 12],
       ]);
 
-    // d3-sankey mutates its input, so pass fresh copies on every rebuild
-    // rather than the arrays above directly.
-    return layout({
-      nodes: nodes.map((d) => ({ ...d })),
-      links: links.map((d) => ({ ...d })),
-    });
+    const result = layout({ nodes: nodes.map((d) => ({ ...d })), links: links.map((d) => ({ ...d })) });
+    const maxDepth = Math.max(...result.nodes.map((n) => n.depth));
+    return { ...result, width, height, maxDepth, totalCents };
   });
 
   const linkPath = sankeyLinkHorizontal();
 
-  function formatCents(cents) {
-    return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+  function formatDollars(cents) {
+    return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  }
+
+  function formatPercent(cents, totalCents) {
+    if (!totalCents) return '';
+    const pct = (cents / totalCents) * 100;
+    return `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`;
   }
 </script>
 
-<div class="actualmint-spending-sankey">
+<div class="actualmint-spending-sankey" bind:clientWidth={containerWidth}>
   {#if errorMessage}
     <p class="sankey-error" role="alert">{errorMessage}</p>
   {:else if isLoading}
-    <p class="sankey-loading">Loading spending flow…</p>
+    <p class="sankey-loading">Loading cash flow…</p>
   {:else if isEmpty}
-    <p class="sankey-empty">No spending to show.</p>
+    <p class="sankey-empty">No income or spending this month yet.</p>
   {:else if graph}
     <svg
       class="sankey-svg"
-      viewBox="0 0 {WIDTH} {HEIGHT}"
+      width={graph.width}
+      height={graph.height}
+      viewBox="0 0 {graph.width} {graph.height}"
       role="img"
-      aria-label="Monthly spending flow from income to group to category"
+      aria-label="This month's cash flow from income to savings and spending groups and categories"
     >
       {#each graph.links as link, index (index)}
         <path
           class="sankey-link"
           d={linkPath(link)}
           fill="none"
-          stroke={colorFor(Math.max(link.source.colorIndex, 0))}
-          stroke-opacity="0.25"
+          stroke={link.target.color}
+          stroke-opacity="0.3"
           stroke-width={Math.max(link.width, 1)}
-        />
+        >
+          <title>{link.source.label} → {link.target.label}: {formatDollars(link.value)}</title>
+        </path>
       {/each}
+
+      {#snippet nodeBody(node)}
+        {@const labelX = node.x1 - node.x0 + 6}
+        {@const midY = (node.y1 - node.y0) / 2}
+        {@const amount = `${formatDollars(node.value)} (${formatPercent(node.value, graph.totalCents)})`}
+        <rect class="sankey-node-rect" width={node.x1 - node.x0} height={Math.max(node.y1 - node.y0, 2)} rx="2" fill={node.color} />
+        <!-- Two lines need ~28px; thin nodes sit only NODE_PADDING apart, so they get one line. -->
+        {#if node.depth === graph.maxDepth || node.y1 - node.y0 < 14}
+          <text class="sankey-node-label" x={labelX} y={midY} dy="0.35em">
+            <tspan class="sankey-node-name">{node.label}</tspan>
+            <tspan class="sankey-node-amount" dx="6">{amount}</tspan>
+          </text>
+        {:else}
+          <text class="sankey-node-label" x={labelX} y={midY} dy="-0.25em">
+            <tspan class="sankey-node-name">{node.label}</tspan>
+            <tspan class="sankey-node-amount" x={labelX} dy="1.2em">{amount}</tspan>
+          </text>
+        {/if}
+      {/snippet}
 
       {#each graph.nodes as node (node.id)}
         {#if node.categoryId}
@@ -237,27 +232,11 @@
               }
             }}
           >
-            <rect
-              class="sankey-node-rect"
-              width={Math.max(node.x1 - node.x0, 1)}
-              height={Math.max(node.y1 - node.y0, 1)}
-              fill={node.colorIndex >= 0 ? colorFor(node.colorIndex) : '#6b7280'}
-            />
-            <text class="sankey-node-label" x={node.x1 - node.x0 + 6} y={(node.y1 - node.y0) / 2} dy="0.35em">
-              {node.label}
-            </text>
+            {@render nodeBody(node)}
           </g>
         {:else}
           <g class="sankey-node" data-node-id={node.id} transform="translate({node.x0},{node.y0})">
-            <rect
-              class="sankey-node-rect"
-              width={Math.max(node.x1 - node.x0, 1)}
-              height={Math.max(node.y1 - node.y0, 1)}
-              fill={node.colorIndex >= 0 ? colorFor(node.colorIndex) : '#6b7280'}
-            />
-            <text class="sankey-node-label" x={node.x1 - node.x0 + 6} y={(node.y1 - node.y0) / 2} dy="0.35em">
-              {node.label}
-            </text>
+            {@render nodeBody(node)}
           </g>
         {/if}
       {/each}
@@ -267,16 +246,10 @@
 
 <style>
   .actualmint-spending-sankey {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     width: 100%;
     box-sizing: border-box;
     font-family: inherit;
-    /* Establishes this widget's own box (not the viewport) as the sizing
-       context, since it's mounted into a host element of unpredictable
-       width inside an Actual report page. */
-    container-type: inline-size;
+    overflow-x: auto;
   }
 
   .sankey-error {
@@ -290,13 +263,11 @@
   }
 
   .sankey-svg {
-    width: 100%;
-    height: auto;
+    display: block;
   }
 
-  .sankey-node-rect {
-    stroke: #fff;
-    stroke-width: 1;
+  .sankey-link:hover {
+    stroke-opacity: 0.55;
   }
 
   .sankey-node--category {
@@ -305,13 +276,29 @@
 
   .sankey-node--category:hover .sankey-node-rect,
   .sankey-node--category:focus-visible .sankey-node-rect {
-    opacity: 0.8;
+    opacity: 0.75;
     outline: none;
   }
 
   .sankey-node-label {
-    font-size: 10px;
-    fill: #111827;
-    dominant-baseline: middle;
+    font-size: 12px;
+    fill: var(--color-pageText, #111827);
+    paint-order: stroke;
+    stroke: var(--color-pageBackground, #fff);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  .sankey-node--category .sankey-node-label {
+    pointer-events: auto;
+  }
+
+  .sankey-node-name {
+    font-weight: 600;
+  }
+
+  .sankey-node-amount {
+    fill: var(--color-pageTextSubdued, #6b7280);
   }
 </style>

@@ -1,0 +1,113 @@
+const express = require('express');
+const { q } = require('@actual-app/api');
+
+const { getActualClient, syncIfDue } = require('../actual-client');
+const { daysInMonthFor } = require('../month-days');
+
+const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+function monthBounds(month) {
+  const [yearStr, monthStr] = month.split('-');
+  const lastDay = daysInMonthFor(Number(yearStr), Number(monthStr));
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    monthStart: `${yearStr}-${monthStr}-01`,
+    monthEnd: `${yearStr}-${monthStr}-${pad(lastDay)}`,
+  };
+}
+
+const byAmountDesc = (a, b) => b.amountCents - a.amountCents;
+
+// Actual only flags its single built-in "Income" group as is_income, but
+// this budget keeps paychecks in a regular group named "Personal Income".
+const isIncomeGroup = (group) => group.is_income || /\bincome\b/i.test(group.name);
+// A user-made "Transfers" group holds categorized-but-unlinked moves between
+// accounts. That's not spending; leaving it out lets it fall into "Saved".
+const isTransferGroup = (group) => /^transfers?$/i.test(group.name.trim());
+
+const router = express.Router();
+
+// One month's money flow for the Sankey: income by income category, and
+// spending by expense group with each group's categories nested. Amounts are
+// positive in both directions. A category whose net is a refund (spending
+// side) or a clawback (income side) is dropped rather than shown negative,
+// and a group's total is the sum of its kept categories so the chart's
+// widths always add up.
+router.get('/', async (req, res, next) => {
+  try {
+    const { month } = req.query;
+    if (typeof month !== 'string' || !MONTH_PATTERN.test(month)) {
+      res.status(400).json({ error: 'month query parameter must be in YYYY-MM format' });
+      return;
+    }
+
+    const client = await getActualClient();
+    await syncIfDue(client);
+
+    const { monthStart, monthEnd } = monthBounds(month);
+    const [{ data: rows }, categoryGroups] = await Promise.all([
+      client.aqlQuery(
+        q('transactions')
+          // Opening balances land in the "Starting Balances" income category
+          // when an account is added; they're not earnings.
+          .filter({
+            date: { $gte: monthStart, $lte: monthEnd },
+            tombstone: false,
+            transfer_id: null,
+            starting_balance_flag: false,
+          })
+          .groupBy('category')
+          .select([{ categoryId: 'category' }, { amountCents: { $sum: '$amount' } }])
+      ),
+      client.getCategoryGroups(),
+    ]);
+
+    const categoryInfo = new Map();
+    for (const group of categoryGroups || []) {
+      for (const category of group.categories || []) {
+        categoryInfo.set(category.id, { category, group });
+      }
+    }
+
+    const income = [];
+    const groupsById = new Map();
+    for (const row of rows || []) {
+      const info = categoryInfo.get(row.categoryId);
+      if (!info) continue;
+      const { category, group } = info;
+      if (isTransferGroup(group)) continue;
+
+      if (isIncomeGroup(group)) {
+        if (row.amountCents > 0) {
+          income.push({ id: category.id, label: category.name, amountCents: row.amountCents });
+        }
+        continue;
+      }
+
+      const spentCents = -row.amountCents;
+      if (spentCents <= 0) continue;
+      let entry = groupsById.get(group.id);
+      if (!entry) {
+        entry = { id: group.id, label: group.name, amountCents: 0, categories: [] };
+        groupsById.set(group.id, entry);
+      }
+      entry.amountCents += spentCents;
+      entry.categories.push({ id: category.id, label: category.name, amountCents: spentCents });
+    }
+
+    const groups = [...groupsById.values()].sort(byAmountDesc);
+    for (const group of groups) group.categories.sort(byAmountDesc);
+    income.sort(byAmountDesc);
+
+    res.status(200).json({
+      incomeCents: income.reduce((sum, item) => sum + item.amountCents, 0),
+      spendingCents: groups.reduce((sum, group) => sum + group.amountCents, 0),
+      income,
+      groups,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = router;

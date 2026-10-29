@@ -17,181 +17,160 @@ function mountWidget(props = {}) {
 }
 
 async function flush() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function groupsResponse(groups) {
-  return jsonResponse({ slices: groups });
-}
+const FLOW = {
+  incomeCents: 100000,
+  spendingCents: 80000,
+  income: [
+    { id: 'pay', label: 'Paychecks', amountCents: 90000 },
+    { id: 'interest', label: 'Interest', amountCents: 10000 },
+  ],
+  groups: [
+    {
+      id: 'group1',
+      label: 'Everyday Expenses',
+      amountCents: 50000,
+      categories: [
+        { id: 'cat1', label: 'Groceries', amountCents: 30000 },
+        { id: 'cat2', label: 'Dining', amountCents: 20000 },
+      ],
+    },
+    { id: 'group2', label: 'Bills', amountCents: 30000, categories: [{ id: 'cat3', label: 'Electric', amountCents: 30000 }] },
+  ],
+};
 
-function categoriesResponse(categories) {
-  return jsonResponse({ slices: categories });
-}
-
-function payeesResponse(payees) {
-  return jsonResponse({ slices: payees });
-}
-
-const TWO_GROUPS = [
-  { id: 'group1', label: 'Everyday Expenses', amountCents: 50000 },
-  { id: 'group2', label: 'Bills', amountCents: 30000 },
-];
-
-function mockTwoGroupsWithCategories() {
+function mockFlow(flow = FLOW) {
   fetchApi.mockImplementation((url) => {
-    if (url.includes('level=groups')) {
-      return Promise.resolve(groupsResponse(TWO_GROUPS));
-    }
-    if (url.includes('level=categories') && url.includes('groupId=group1')) {
-      return Promise.resolve(
-        categoriesResponse([
-          { id: 'cat1', label: 'Groceries', amountCents: 30000 },
-          { id: 'cat2', label: 'Dining', amountCents: 20000 },
-        ]),
-      );
-    }
-    if (url.includes('level=categories') && url.includes('groupId=group2')) {
-      return Promise.resolve(categoriesResponse([{ id: 'cat3', label: 'Electric', amountCents: 30000 }]));
-    }
+    if (url.startsWith('/api/cash-flow')) return Promise.resolve(jsonResponse(flow));
     if (url.includes('level=payees') && url.includes('categoryId=cat1')) {
       return Promise.resolve(
-        payeesResponse([
-          { id: 'payee1', label: 'Whole Foods', amountCents: 20000 },
-          { id: 'payee2', label: 'Trader Joes', amountCents: 10000 },
-        ]),
+        jsonResponse({
+          slices: [
+            { id: 'payee1', label: 'Whole Foods', amountCents: 20000 },
+            { id: 'payee2', label: 'Trader Joes', amountCents: 10000 },
+          ],
+        }),
       );
     }
     return Promise.resolve(jsonResponse({ slices: [] }));
   });
 }
+
+function nodeLabel(target, id) {
+  return target.querySelector(`[data-node-id="${id}"] text`)?.textContent.replace(/\s+/g, ' ').trim();
+}
+
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
 
 beforeEach(() => {
   fetchApi.mockReset();
 });
 
-test('fetches groups-level breakdown on mount, then categories for every group', async () => {
-  mockTwoGroupsWithCategories();
-
+test('loads the whole month in a single cash-flow request', async () => {
+  mockFlow();
   mountWidget();
   await flush();
 
-  const urls = fetchApi.mock.calls.map((call) => call[0]);
-  expect(urls.some((u) => u.includes('level=groups'))).toBe(true);
-  expect(urls.some((u) => u.includes('level=categories') && u.includes('groupId=group1'))).toBe(true);
-  expect(urls.some((u) => u.includes('level=categories') && u.includes('groupId=group2'))).toBe(true);
+  expect(fetchApi).toHaveBeenCalledTimes(1);
+  expect(fetchApi.mock.calls[0][0]).toMatch(/^\/api\/cash-flow\?month=\d{4}-\d{2}$/);
 });
 
-test('renders a node per group and per category, with connecting links (not disconnected boxes)', async () => {
-  mockTwoGroupsWithCategories();
-
+test('renders income sources, income, savings, groups, and categories as connected nodes', async () => {
+  mockFlow();
   const target = mountWidget();
   await flush();
 
-  // 1 income node + 2 group nodes + 3 category nodes = 6
-  expect(target.querySelectorAll('.sankey-node').length).toBe(6);
-  expect(target.querySelectorAll('.sankey-link').length).toBeGreaterThan(0);
-
-  // Links must be real connecting paths (a sankeyLinkHorizontal `d`), not
-  // disconnected boxes with no `d` attribute.
-  const link = target.querySelector('.sankey-link');
-  expect(link.getAttribute('d')).toBeTruthy();
+  for (const id of ['src:pay', 'src:interest', 'income', 'savings', 'group:group1', 'group:group2', 'cat:cat1', 'cat:cat2', 'cat:cat3']) {
+    expect(target.querySelector(`[data-node-id="${id}"]`)).not.toBeNull();
+  }
+  expect(target.querySelectorAll('.sankey-node').length).toBe(9);
+  expect(target.querySelector('.sankey-link').getAttribute('d')).toBeTruthy();
 });
 
-test('clicking a category node fetches payees for just that category and inserts a merchant column for it', async () => {
-  mockTwoGroupsWithCategories();
-
+test('saved amount is income minus spending, and labels show dollars and share of income', async () => {
+  mockFlow();
   const target = mountWidget();
   await flush();
 
-  const categoryNode = target.querySelector('[data-node-id="cat:cat1"]');
-  expect(categoryNode).not.toBeNull();
-  categoryNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  await flush();
-
-  const urls = fetchApi.mock.calls.map((call) => call[0]);
-  expect(urls.some((u) => u.includes('level=payees') && u.includes('categoryId=cat1'))).toBe(true);
-  expect(urls.some((u) => u.includes('level=payees') && u.includes('categoryId=cat2'))).toBe(false);
-
-  expect(target.querySelector('[data-node-id="merchant:cat1:payee1"]')).not.toBeNull();
-  expect(target.querySelector('[data-node-id="merchant:cat1:payee2"]')).not.toBeNull();
+  expect(nodeLabel(target, 'savings')).toBe('Saved $200 (20%)');
+  expect(nodeLabel(target, 'group:group1')).toBe('Everyday Expenses $500 (50%)');
+  expect(nodeLabel(target, 'cat:cat2')).toBe('Dining $200 (20%)');
+  expect(nodeLabel(target, 'src:interest')).toBe('Interest $100 (10%)');
 });
 
-test('clicking the same category node twice does not duplicate the merchant column', async () => {
-  mockTwoGroupsWithCategories();
-
+test('link widths are proportional to amounts', async () => {
+  mockFlow();
   const target = mountWidget();
   await flush();
 
-  const categoryNode = target.querySelector('[data-node-id="cat:cat1"]');
-  categoryNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  const widthTo = (label) => {
+    const link = [...target.querySelectorAll('.sankey-link')].find((l) => l.querySelector('title').textContent.startsWith(`Income → ${label}:`));
+    return Number(link.getAttribute('stroke-width'));
+  };
+  expect(widthTo('Everyday Expenses') / widthTo('Bills')).toBeCloseTo(50000 / 30000, 2);
+  expect(widthTo('Bills')).toBeGreaterThan(5);
+});
+
+test('spending above income adds a "From savings" source instead of a savings node', async () => {
+  mockFlow({ ...FLOW, incomeCents: 50000, income: [{ id: 'pay', label: 'Paychecks', amountCents: 50000 }] });
+  const target = mountWidget();
   await flush();
 
-  const payeesCallCountAfterFirst = fetchApi.mock.calls.filter((call) => call[0].includes('level=payees')).length;
-  expect(payeesCallCountAfterFirst).toBe(1);
+  expect(target.querySelector('[data-node-id="savings"]')).toBeNull();
+  expect(nodeLabel(target, 'src:shortfall')).toBe('From savings $300 (38%)');
+});
+
+test('clicking a category adds its merchants, and clicking again removes them without refetching', async () => {
+  mockFlow();
+  const target = mountWidget();
+  await flush();
+
+  target.querySelector('[data-node-id="cat:cat1"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await flush();
+
+  const payeeCalls = () => fetchApi.mock.calls.filter((call) => call[0].includes('level=payees'));
+  expect(payeeCalls().length).toBe(1);
+  expect(payeeCalls()[0][0]).toContain('categoryId=cat1');
   expect(target.querySelectorAll('[data-node-id^="merchant:cat1:"]').length).toBe(2);
 
-  // Second click collapses the column rather than re-fetching or duplicating.
-  const categoryNodeAgain = target.querySelector('[data-node-id="cat:cat1"]');
-  categoryNodeAgain.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  target.querySelector('[data-node-id="cat:cat1"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   await flush();
 
-  const payeesCallCountAfterSecond = fetchApi.mock.calls.filter((call) => call[0].includes('level=payees')).length;
-  expect(payeesCallCountAfterSecond).toBe(1);
+  expect(payeeCalls().length).toBe(1);
   expect(target.querySelectorAll('[data-node-id^="merchant:cat1:"]').length).toBe(0);
 });
 
-test('a group with a single category does not crash the layout (degenerate single-child case)', async () => {
-  fetchApi.mockImplementation((url) => {
-    if (url.includes('level=groups')) {
-      return Promise.resolve(groupsResponse([{ id: 'group1', label: 'Solo Group', amountCents: 10000 }]));
-    }
-    if (url.includes('level=categories')) {
-      return Promise.resolve(categoriesResponse([{ id: 'cat1', label: 'Only Category', amountCents: 10000 }]));
-    }
-    return Promise.resolve(jsonResponse({ slices: [] }));
-  });
-
+test('a month with no income or spending shows a clean empty state', async () => {
+  mockFlow({ incomeCents: 0, spendingCents: 0, income: [], groups: [] });
   const target = mountWidget();
   await flush();
 
-  expect(target.querySelector('.sankey-error')).toBeNull();
-  expect(target.querySelectorAll('.sankey-node').length).toBe(3); // income + 1 group + 1 category
-  expect(target.querySelector('svg')).not.toBeNull();
-});
-
-test('zero spending for the month shows a clean empty state, not a broken SVG', async () => {
-  fetchApi.mockResolvedValue(groupsResponse([]));
-
-  const target = mountWidget();
-  await flush();
-
-  const empty = target.querySelector('.sankey-empty');
-  expect(empty).not.toBeNull();
-  expect(empty.textContent).toContain('No spending to show.');
+  expect(target.querySelector('.sankey-empty').textContent).toContain('No income or spending this month yet.');
   expect(target.querySelector('svg')).toBeNull();
 });
 
 test('renders the inline error treatment on a non-ok response', async () => {
   fetchApi.mockResolvedValue(jsonResponse({ error: 'nope' }, false, 500));
-
   const target = mountWidget();
   await flush();
 
-  const error = target.querySelector('.sankey-error[role="alert"]');
-  expect(error).not.toBeNull();
-  expect(error.textContent).toContain('500');
+  expect(target.querySelector('.sankey-error[role="alert"]').textContent).toContain('500');
   expect(target.querySelector('svg')).toBeNull();
 });
 
 test('renders the inline error treatment when fetch throws', async () => {
   fetchApi.mockRejectedValue(new Error('network down'));
-
   const target = mountWidget();
   await flush();
 
-  const error = target.querySelector('.sankey-error[role="alert"]');
-  expect(error).not.toBeNull();
+  expect(target.querySelector('.sankey-error[role="alert"]')).not.toBeNull();
   expect(target.querySelector('svg')).toBeNull();
 });
