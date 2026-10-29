@@ -245,11 +245,11 @@ Actual's Settings page:
 
 | Pacing bars and drill-down | Reports widgets |
 | --- | --- |
-| ![A budget-pacing-bars widget next to its category drill-down donut and an account-balances chart, in the Mint-style theme](docs/screenshots/pacing-bars-drilldown.jpg) | ![Reports page with pacing bars, projected net, and an account balance chart](docs/screenshots/reports-widgets.jpg) |
+| ![A budget-pacing-bars widget with a category's drill-down donut open, in the Mint-style theme](docs/screenshots/pacing-bars-drilldown.jpg) | ![Reports page with pacing bars, projected month-end net, and an account-balances chart alongside Actual's own cards](docs/screenshots/reports-widgets.jpg) |
 
 | Widget builder | Settings |
 | --- | --- |
-| ![Widget builder button next to Actual's own "Add new widget" button, panel open](docs/screenshots/widget-builder.jpg) | ![The ActualMint settings card injected below Actual's own Themes card](docs/screenshots/settings-card.jpg) |
+| ![Widget builder button next to Actual's own "Add new widget" button, panel open with a generated placeholder](docs/screenshots/widget-builder.jpg) | ![The ActualMint settings card below Actual's own Themes card: text size, Mint-style theme, and savings goals](docs/screenshots/settings-card.jpg) |
 
 | Text size control |
 | --- |
