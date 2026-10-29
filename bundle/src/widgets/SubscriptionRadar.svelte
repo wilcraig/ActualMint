@@ -26,11 +26,14 @@
 
   let items = $state(null); // null while loading; [] once loaded with nothing upcoming
   let errorMessage = $state(null);
+  let containerWidth = $state(0);
 
-  const WIDTH = 720;
-  const HEIGHT = 160;
-  const MARGIN = { top: 36, right: 24, bottom: 36, left: 24 };
+  const MARGIN = { top: 8, right: 12, bottom: 8, left: 12 };
   const WINDOW_DAYS = 30;
+  const LANE_HEIGHT = 20;
+  const LABEL_GAP = 8; // minimum horizontal space between two labels in a lane
+  const TICK_STRIP = 22; // room under the axis for the date ticks
+  const FONT = '11px system-ui, -apple-system, sans-serif';
 
   // Same stable-boundary pattern bills-timeline.js/month-end-projection.js
   // use server-side -- here client-side, since this widget runs entirely in
@@ -104,7 +107,36 @@
   let today = $derived(startOfLocalDay(new Date()));
   let windowEnd = $derived(addDays(today, WINDOW_DAYS));
 
-  let xScale = $derived(scaleTime().domain([today, windowEnd]).range([MARGIN.left, WIDTH - MARGIN.right]));
+  let width = $derived(Math.max(containerWidth || 720, 360));
+  let xScale = $derived(scaleTime().domain([today, windowEnd]).range([MARGIN.left + 6, width - MARGIN.right - 6]));
+
+  let measureContext = null;
+  function textWidth(text) {
+    try {
+      measureContext ??= document.createElement('canvas').getContext('2d');
+      if (measureContext) {
+        measureContext.font = FONT;
+        const measured = measureContext.measureText(text).width;
+        if (measured > 0) return measured;
+      }
+    } catch {
+      // No canvas (tests); fall back to an average glyph width below.
+    }
+    return text.length * 6.2;
+  }
+
+  // Bills are negative in Actual, deposits positive; labels show the size
+  // with a "+" only on deposits. Cents only where they matter.
+  function formatAmount(cents) {
+    const abs = Math.abs(cents) / 100;
+    const text = abs.toLocaleString(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: abs < 100 && abs % 1 !== 0 ? 2 : 0,
+      maximumFractionDigits: abs < 100 ? 2 : 0,
+    });
+    return cents > 0 ? `+${text}` : text;
+  }
 
   // Each distinct groupName gets a stable color index, assigned the first
   // time it's seen in date-sorted item order (this widget's own call --
@@ -119,7 +151,7 @@
     return [...items].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   });
 
-  let dots = $derived.by(() => {
+  let coloredItems = $derived.by(() => {
     const groupIndexByName = new Map();
     let nextIndex = 0;
 
@@ -142,26 +174,70 @@
         amountCents: item.amountCents,
         cx: xScale(parseDateOnly(item.date)),
         color,
-        // Alternating above/below the axis, staggered by index, to reduce
-        // same-day label collisions -- same-date items naturally land at
-        // adjacent indices once sorted chronologically above.
-        above: i % 2 === 0,
       };
     });
   });
 
-  const AXIS_Y = HEIGHT / 2;
   const DOT_RADIUS = 5;
-  const LABEL_OFFSET = 22;
 
-  function formatCents(cents) {
-    return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
-  }
+  // Lane packing: each label goes in the closest free lane to the axis,
+  // trying above then below, then one lane further out on each side, so no
+  // two labels ever overlap. Labels are centered on their dot and clamped
+  // to the chart edges; a stem connects each label to its dot.
+  let layout = $derived.by(() => {
+    const lanes = { above: [], below: [] }; // each lane: right edge of its last label
+    const sameDayCount = new Map();
+    const placed = coloredItems.map((item) => {
+      const text = `${item.payeeName} ${formatAmount(item.amountCents)}`;
+      const w = textWidth(text);
+      const x0 = Math.min(Math.max(item.cx - w / 2, MARGIN.left), width - MARGIN.right - w);
+      let side = null;
+      let lane = 0;
+      for (lane = 0; side === null; lane++) {
+        for (const s of ['above', 'below']) {
+          if ((lanes[s][lane] ?? -Infinity) + LABEL_GAP <= x0) {
+            side = s;
+            break;
+          }
+        }
+        if (side) break;
+      }
+      lanes[side][lane] = x0 + w;
+      const stack = sameDayCount.get(item.date) ?? 0;
+      sameDayCount.set(item.date, stack + 1);
+      return { ...item, text, x0, w, side, lane, stack };
+    });
+
+    const lanesAbove = Math.max(lanes.above.length, 1);
+    const lanesBelow = lanes.below.length;
+    const maxStack = Math.max(0, ...placed.map((p) => p.stack));
+    const dotBand = DOT_RADIUS * 2 + maxStack * (DOT_RADIUS * 2 + 2);
+    const axisY = MARGIN.top + lanesAbove * LANE_HEIGHT + dotBand;
+    const height = axisY + TICK_STRIP + lanesBelow * LANE_HEIGHT + MARGIN.bottom;
+
+    const dots = placed.map((p) => {
+      // Same-day dots stack upward so none hides another.
+      const cy = axisY - p.stack * (DOT_RADIUS * 2 + 2);
+      const labelY =
+        p.side === 'above'
+          ? axisY - dotBand - p.lane * LANE_HEIGHT - 6
+          : axisY + TICK_STRIP + p.lane * LANE_HEIGHT + 12;
+      const stemEnd = p.side === 'above' ? labelY + 4 : labelY - 11;
+      return { ...p, cy, labelY, stemStart: p.side === 'above' ? cy - DOT_RADIUS : axisY + DOT_RADIUS, stemEnd };
+    });
+
+    const ticks = [];
+    for (let d = today; d <= windowEnd; d = addDays(d, 7)) {
+      ticks.push({ x: xScale(d), label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) });
+    }
+
+    return { dots, axisY, height, ticks };
+  });
 
   let isEmpty = $derived(items !== null && items.length === 0);
 </script>
 
-<div class="actualmint-subscription-radar">
+<div class="actualmint-subscription-radar" bind:clientWidth={containerWidth}>
   {#if errorMessage}
     <p class="radar-error" role="alert">{errorMessage}</p>
   {:else if items === null}
@@ -171,47 +247,27 @@
   {:else}
     <svg
       class="radar-svg"
-      viewBox="0 0 {WIDTH} {HEIGHT}"
+      width={width}
+      height={layout.height}
+      viewBox="0 0 {width} {layout.height}"
       role="img"
       aria-label="Upcoming scheduled transactions in the next 30 days"
     >
-      <line
-        class="radar-axis"
-        x1={MARGIN.left}
-        y1={AXIS_Y}
-        x2={WIDTH - MARGIN.right}
-        y2={AXIS_Y}
-        stroke="#d1d5db"
-        stroke-width="1"
-      />
+      <line class="radar-axis" x1={MARGIN.left} y1={layout.axisY} x2={width - MARGIN.right} y2={layout.axisY} />
+      {#each layout.ticks as tick (tick.x)}
+        <line class="radar-tick" x1={tick.x} y1={layout.axisY} x2={tick.x} y2={layout.axisY + 4} />
+        <text class="radar-tick-label" x={tick.x} y={layout.axisY + 15} text-anchor="middle">{tick.label}</text>
+      {/each}
 
-      {#each dots as dot (dot.key)}
+      {#each layout.dots as dot (dot.key)}
         <g class="radar-item">
-          <line
-            class="radar-stem"
-            x1={dot.cx}
-            y1={AXIS_Y}
-            x2={dot.cx}
-            y2={AXIS_Y + (dot.above ? -LABEL_OFFSET + 6 : LABEL_OFFSET - 6)}
-            stroke={dot.color}
-            stroke-width="1"
-          />
-          <text
-            class="radar-label"
-            x={dot.cx}
-            y={AXIS_Y + (dot.above ? -LABEL_OFFSET : LABEL_OFFSET + 10)}
-            text-anchor="middle"
-          >
-            {dot.payeeName} · {formatCents(dot.amountCents)}
+          <line class="radar-stem" x1={dot.cx} y1={dot.stemStart} x2={dot.cx} y2={dot.stemEnd} stroke={dot.color} />
+          <text class="radar-label" x={dot.x0} y={dot.labelY}>
+            <title>{dot.date}: {dot.payeeName} {formatAmount(dot.amountCents)}</title>
+            <tspan class="radar-label-name">{dot.payeeName}</tspan>
+            <tspan class="radar-label-amount" class:radar-label-amount--deposit={dot.amountCents > 0} dx="4">{formatAmount(dot.amountCents)}</tspan>
           </text>
-          <circle
-            class="radar-dot"
-            data-schedule-id={dot.scheduleId}
-            cx={dot.cx}
-            cy={AXIS_Y}
-            r={DOT_RADIUS}
-            fill={dot.color}
-          />
+          <circle class="radar-dot" data-schedule-id={dot.scheduleId} cx={dot.cx} cy={dot.cy} r={DOT_RADIUS} fill={dot.color} />
         </g>
       {/each}
     </svg>
@@ -243,12 +299,40 @@
   }
 
   .radar-svg {
-    width: 100%;
-    height: auto;
+    display: block;
+  }
+
+  .radar-axis,
+  .radar-tick {
+    stroke: #d1d5db;
+    stroke-width: 1;
+  }
+
+  .radar-stem {
+    stroke-width: 1;
+    stroke-opacity: 0.6;
+  }
+
+  .radar-tick-label {
+    font-size: 10px;
+    fill: #6b7280;
   }
 
   .radar-label {
-    font-size: 10px;
+    font: 11px system-ui, -apple-system, sans-serif;
     fill: #374151;
+    /* White halo keeps text legible where another item's stem crosses it. */
+    paint-order: stroke;
+    stroke: #fff;
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+
+  .radar-label-amount {
+    fill: #6b7280;
+  }
+
+  .radar-label-amount--deposit {
+    fill: #15803d;
   }
 </style>

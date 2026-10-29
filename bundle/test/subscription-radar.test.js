@@ -26,6 +26,14 @@ function emptyResponse() {
   return jsonResponse({ items: [] });
 }
 
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
+
 beforeEach(() => {
   fetchApi.mockReset();
 });
@@ -126,6 +134,63 @@ test('items beyond 30 days out are excluded even if returned by a fetched month'
   expect(ids).toContain('in-range');
   expect(ids).toContain('within-30');
   expect(ids).not.toContain('beyond-30');
+});
+
+test('many items close together pack into lanes with no two labels overlapping, and same-day dots stack', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 1));
+
+  const payees = ['Netflix', 'Hulu', 'Spotify', 'Rocky Mountain Power', 'Mortgage', 'Verizon', 'State Farm Insurance', 'Dep Stayntouch Payroll'];
+  const items = Array.from({ length: 20 }, (_, i) => ({
+    scheduleId: `s${i}`,
+    payeeName: payees[i % payees.length],
+    date: `2026-10-${String(5 + Math.floor(i / 4)).padStart(2, '0')}`,
+    amountCents: i % 5 === 0 ? 447100 : -(1599 + i * 1000),
+    groupName: null,
+  }));
+  fetchApi.mockImplementation(() => Promise.resolve(jsonResponse({ items })));
+
+  const target = mountWidget();
+  await flush();
+
+  const boxes = [...target.querySelectorAll('.radar-label')].map((label) => {
+    const text = [...label.querySelectorAll('tspan')].map((t) => t.textContent).join(' ');
+    const x = Number(label.getAttribute('x'));
+    return { y: label.getAttribute('y'), x0: x, x1: x + text.length * 6.2 };
+  });
+  expect(boxes).toHaveLength(20);
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      if (boxes[i].y !== boxes[j].y) continue;
+      const overlap = boxes[i].x0 < boxes[j].x1 && boxes[j].x0 < boxes[i].x1;
+      expect(overlap).toBe(false);
+    }
+  }
+
+  // Four items share each date: their dots sit at four different heights.
+  const sameDayDots = [...target.querySelectorAll('.radar-dot')].slice(0, 4).map((d) => d.getAttribute('cy'));
+  expect(new Set(sameDayDots).size).toBe(4);
+});
+
+test('deposits are labeled with a + and bills without a sign', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 9, 1));
+  fetchApi.mockImplementation(() =>
+    Promise.resolve(
+      jsonResponse({
+        items: [
+          { scheduleId: 'pay', payeeName: 'Payroll', date: '2026-10-10', amountCents: 447100, groupName: null },
+          { scheduleId: 'nf', payeeName: 'Netflix', date: '2026-10-12', amountCents: -1549, groupName: null },
+        ],
+      }),
+    ),
+  );
+
+  const target = mountWidget();
+  await flush();
+
+  const amounts = [...target.querySelectorAll('.radar-label-amount')].map((a) => a.textContent);
+  expect(amounts).toEqual(['+$4,471', '$15.49']);
 });
 
 test('two items on the same date both render without visually overlapping', async () => {
