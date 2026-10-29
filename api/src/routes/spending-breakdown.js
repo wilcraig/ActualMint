@@ -2,9 +2,11 @@ const express = require('express');
 const { q } = require('@actual-app/api');
 
 const { getActualClient, syncIfDue } = require('../actual-client');
+const { dateRange } = require('../aql-date-range');
 const { daysInMonthFor } = require('../month-days');
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_LEVELS = new Set(['groups', 'categories', 'payees', 'transactions']);
 // Sentinel for "the no-payee bucket" (see breakdownByPayees' null-payee
 // handling below) as a literal query-param value, since a real payeeId is
@@ -207,10 +209,13 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const { month, level, groupId, categoryId, groupIds, categoryIds, payeeId } = req.query;
+    const { month, date, level, groupId, categoryId, groupIds, categoryIds, payeeId } = req.query;
 
-    if (typeof month !== 'string' || !MONTH_PATTERN.test(month)) {
-      res.status(400).json({ error: 'month query parameter must be in YYYY-MM format' });
+    // Either a whole month or one single day (the calendar heatmap's drill-down).
+    const hasMonth = typeof month === 'string' && MONTH_PATTERN.test(month);
+    const hasDate = typeof date === 'string' && DATE_PATTERN.test(date);
+    if (hasMonth === hasDate || (month !== undefined && date !== undefined)) {
+      res.status(400).json({ error: 'exactly one of month (YYYY-MM) or date (YYYY-MM-DD) is required' });
       return;
     }
 
@@ -257,14 +262,14 @@ router.get('/', async (req, res, next) => {
     const client = await getActualClient();
     await syncIfDue(client);
 
-    const { monthStart, monthEnd } = monthBounds(month);
+    const dateFilter = hasDate ? { date } : dateRange(monthBounds(month).monthStart, monthBounds(month).monthEnd);
     // transfer_id: null excludes transfers between accounts at every level
     // of this drill-down -- a transfer isn't spending, and left in, one
     // routinely dominates the donut (a single reconciliation/rebalancing
     // transfer can dwarf real spending categories; this budget's own
     // "Transfers" category group was 58% of the groups-level total before
     // this filter).
-    const baseFilter = { date: { $gte: monthStart, $lte: monthEnd }, tombstone: false, transfer_id: null };
+    const baseFilter = { ...dateFilter, tombstone: false, transfer_id: null };
 
     if (level === 'transactions') {
       const transactions = await transactionsForCategoryAndPayee(

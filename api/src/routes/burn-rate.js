@@ -2,6 +2,7 @@ const express = require('express');
 const { q } = require('@actual-app/api');
 
 const { getActualClient, syncIfDue } = require('../actual-client');
+const { dateRange } = require('../aql-date-range');
 const { daysInMonthFor } = require('../month-days');
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -159,7 +160,7 @@ router.get('/', async (req, res, next) => {
       // (e.g. a paycheck deposit) the same way spending-breakdown.js excludes
       // income groups.
       const baseFilter = {
-        date: { $gte: monthStart, $lte: queryEndStr },
+        ...dateRange(monthStart, queryEndStr),
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,

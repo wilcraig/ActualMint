@@ -8,7 +8,10 @@
   // convention as account-balances's accountIds and pacing-bars'
   // categoryIds -- a non-empty list curates the donut down to just those
   // groups (see breakdown-nav.js's "standalone donut widget" entry point).
-  let { groupIds = [] } = $props();
+  // `date` (YYYY-MM-DD) scopes every level to that one day instead of the
+  // current month; `hideTransfers` drops a user-made "Transfers" group.
+  let { groupIds = [], date = null, hideTransfers = false, showLegend = false } = $props();
+  const TRANSFER_GROUP = /^transfers?$/i;
 
   // groupIds is only ever read at mount (not reactive to later prop
   // changes, matching CategoryBreakdownModal.svelte's same pattern), hence
@@ -28,7 +31,7 @@
     breakdown = null;
 
     try {
-      const params = buildBreakdownParams(currentNav, currentMonth());
+      const params = buildBreakdownParams(currentNav, currentMonth(), date);
       const response = await fetchApi(`/api/spending-breakdown?${params}`);
 
       if (seq !== loadSeq) return; // a newer navigation has since started; discard this response
@@ -40,7 +43,12 @@
 
       const data = await response.json();
       if (seq !== loadSeq) return; // a newer navigation started while this response body was parsing
-      breakdown = data;
+      if (hideTransfers && currentNav.level === 'groups') {
+        const slices = data.slices.filter((s) => !TRANSFER_GROUP.test(s.label.trim()));
+        breakdown = { ...data, slices, total: slices.reduce((sum, s) => sum + s.amountCents, 0) };
+      } else {
+        breakdown = data;
+      }
     } catch (err) {
       if (seq !== loadSeq) return;
       errorMessage = 'Spending breakdown unavailable: could not reach actualmint-api.';
@@ -132,7 +140,7 @@
       </ul>
     {/if}
   {:else}
-    <CategoryBreakdownDonut slices={breakdown.slices} total={breakdown.total} onSliceClick={handleSliceClick} showLegend={false} />
+    <CategoryBreakdownDonut slices={breakdown.slices} total={breakdown.total} onSliceClick={handleSliceClick} {showLegend} />
   {/if}
 </div>
 

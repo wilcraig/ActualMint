@@ -120,8 +120,9 @@ export function currentMonth() {
 // shared by every caller (the drill-down modal, and a standalone donut
 // widget) so the two never drift out of sync on how a NavState maps to a
 // request.
-export function buildBreakdownParams(nav, month) {
-  const params = new URLSearchParams({ month, level: nav.level });
+// Pass `date` (YYYY-MM-DD) instead of a month to scope to that single day.
+export function buildBreakdownParams(nav, month, date = null) {
+  const params = new URLSearchParams(date ? { date, level: nav.level } : { month, level: nav.level });
 
   if (nav.level === 'groups') {
     // A curated subset (the standalone donut widget's entry point); an

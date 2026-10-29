@@ -2,6 +2,7 @@ const express = require('express');
 const { q } = require('@actual-app/api');
 
 const { getActualClient, syncIfDue } = require('../actual-client');
+const { dateRange } = require('../aql-date-range');
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -89,20 +90,42 @@ router.get('/', async (req, res, next) => {
     // (e.g. a paycheck deposit) the same way spending-breakdown.js excludes
     // income groups.
     const baseFilter = {
-      date: { $gte: start, $lte: end },
+      ...dateRange(start, end),
       tombstone: false,
       transfer_id: null,
       'category.group.is_income': false,
     };
 
-    const { data: rows } = await client.aqlQuery(
-      q('transactions')
-        .filter(baseFilter)
-        .groupBy('date')
-        .select([{ date: 'date' }, { amountCents: { $sum: '$amount' } }])
-    );
+    const dailyTotals = (filter) =>
+      client.aqlQuery(
+        q('transactions')
+          .filter(filter)
+          .groupBy('date')
+          .select([{ date: 'date' }, { amountCents: { $sum: '$amount' } }])
+      );
+
+    // Same group rules as /api/cash-flow: a user-made "Transfers" group
+    // holds moves between accounts, and a group named like "Personal
+    // Income" holds paychecks without Actual's is_income flag. Their daily
+    // totals are subtracted back out so neither reads as spending (or as a
+    // negative offset to it).
+    const categoryGroups = await client.getCategoryGroups();
+    const transferGroupIds = (categoryGroups || [])
+      .filter((group) => !group.is_income)
+      .filter((group) => /^transfers?$/i.test((group.name || '').trim()) || /\bincome\b/i.test(group.name || ''))
+      .map((group) => group.id);
+
+    const [{ data: rows }, transferResult] = await Promise.all([
+      dailyTotals(baseFilter),
+      transferGroupIds.length > 0
+        ? dailyTotals({ ...baseFilter, 'category.group': { $oneof: transferGroupIds } })
+        : Promise.resolve({ data: [] }),
+    ]);
 
     const totalsByDate = sumAmountsByDate(rows);
+    for (const [day, transferCents] of sumAmountsByDate(transferResult.data)) {
+      totalsByDate.set(day, (totalsByDate.get(day) ?? 0) - transferCents);
+    }
 
     const days = enumerateDays(startDate, endDate).map((date) => ({
       date,

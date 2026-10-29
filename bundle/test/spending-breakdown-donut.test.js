@@ -20,6 +20,28 @@ beforeEach(() => {
   fetchApi.mockReset();
 });
 
+test('with date and hideTransfers, fetches that single day and drops a "Transfers" group', async () => {
+  fetchApi.mockResolvedValue(
+    jsonResponse({
+      total: 10500,
+      slices: [
+        { id: 'g1', label: 'Food', amountCents: 500 },
+        { id: 'gx', label: 'Transfers', amountCents: 10000 },
+      ],
+    }),
+  );
+
+  const target = mountWidget({ date: '2026-10-15', hideTransfers: true });
+  for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const params = new URLSearchParams(fetchApi.mock.calls[0][0].split('?')[1]);
+  expect(params.get('date')).toBe('2026-10-15');
+  expect(params.has('month')).toBe(false);
+  const slices = [...target.querySelectorAll('.donut-slice')].map((s) => s.getAttribute('aria-label'));
+  expect(slices).toHaveLength(1);
+  expect(slices[0]).toContain('Food');
+});
+
 test('fetches the groups-level breakdown on mount, with no groupIds filter by default', async () => {
   fetchApi.mockResolvedValue(jsonResponse({ total: 500, slices: [{ id: 'g1', label: 'Everyday Expenses', amountCents: 500 }] }));
 

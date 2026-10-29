@@ -23,8 +23,9 @@ async function withServer(fn) {
 // -- `q` is the real (unmocked) @actual-app/api builder, so a Query object
 // passed to the mocked aqlQuery has gone through the real filter/groupBy/
 // select chain and can be asserted on exactly.
-function stubClient(responsesByTable) {
+function stubClient(responsesByTable, categoryGroups = []) {
   return {
+    getCategoryGroups: jest.fn(async () => categoryGroups),
     aqlQuery: jest.fn(async (query) => {
       const table = query.serialize().table;
       const response = responsesByTable[table];
@@ -79,6 +80,31 @@ test('returns one entry per day in range, filling $0 for days with no spending',
   });
 });
 
+test('subtracts "Transfers" and income-named (but unflagged) groups out of each day\'s total', async () => {
+  const client = stubClient(
+    {
+      transactions: (query) =>
+        query.serialize().filterExpressions[0]['category.group']
+          ? [{ date: '2026-11-02', amountCents: -100000 }]
+          : [{ date: '2026-11-02', amountCents: -102500 }],
+    },
+    [
+      { id: 'g-xfer', name: 'Transfers' },
+      { id: 'g-food', name: 'Food' },
+      { id: 'g-pay', name: 'Personal Income' },
+      { id: 'g-real-income', name: 'Income', is_income: true },
+    ],
+  );
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-calendar?start=2026-11-02&end=2026-11-02`, { headers: AUTH_HEADERS });
+    expect((await res.json()).days).toEqual([{ date: '2026-11-02', amountCents: 2500 }]);
+    const transferQuery = client.aqlQuery.mock.calls.map(([q]) => q.serialize()).find((s) => s.filterExpressions[0]['category.group']);
+    expect(transferQuery.filterExpressions[0]['category.group']).toEqual({ $oneof: ['g-xfer', 'g-pay'] });
+  });
+});
+
 test('excludes transfers and income the same way spending-breakdown does (assert on the serialized AQL filter)', async () => {
   const client = stubClient({
     transactions: [{ date: '2026-11-02', amountCents: -2500 }],
@@ -91,7 +117,7 @@ test('excludes transfers and income the same way spending-breakdown does (assert
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-11-01', $lte: '2026-11-05' },
+        $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-05' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,

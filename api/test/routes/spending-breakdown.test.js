@@ -92,7 +92,7 @@ test('level=groups aggregates spending by category group, excluding income group
     // test even though the stub above never looks at the filter contents.
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group.is_income': false },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, 'category.group.is_income': false },
     ]);
     expect(serialized.groupExpressions).toEqual(['category.group']);
     expect(serialized.selectExpressions).toEqual([{ groupId: 'category.group' }, { amountCents: { $sum: '$amount' } }]);
@@ -147,7 +147,7 @@ test('level=groups with groupIds restricts the breakdown to exactly that list of
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-11-01', $lte: '2026-11-30' },
+        $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,
@@ -168,7 +168,7 @@ test('level=groups with no groupIds still means every expense group, unchanged f
     await fetch(`${base}/api/spending-breakdown?month=2026-11&level=groups`, { headers: AUTH_HEADERS });
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group.is_income': false },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, 'category.group.is_income': false },
     ]);
   });
 });
@@ -202,7 +202,7 @@ test('level=categories with categoryIds restricts to exactly that arbitrary list
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: { $oneof: ['catA', 'catB'] } },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, category: { $oneof: ['catA', 'catB'] } },
     ]);
     expect(serialized.groupExpressions).toEqual(['category']);
   });
@@ -261,7 +261,7 @@ test('level=categories aggregates spending by category within the given group', 
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, 'category.group': 'group1' },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, 'category.group': 'group1' },
     ]);
     expect(serialized.groupExpressions).toEqual(['category']);
     expect(serialized.selectExpressions).toEqual([{ categoryId: 'category' }, { amountCents: { $sum: '$amount' } }]);
@@ -304,7 +304,7 @@ test('level=payees aggregates spending by payee within the given category', asyn
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA' },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, category: 'catA' },
     ]);
     expect(serialized.groupExpressions).toEqual(['payee']);
     expect(serialized.selectExpressions).toEqual([{ payeeId: 'payee' }, { amountCents: { $sum: '$amount' } }]);
@@ -335,7 +335,7 @@ test('level=transactions returns individual transaction line items for a (catego
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA', payee: 'payeeA' },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, category: 'catA', payee: 'payeeA' },
     ]);
   });
 });
@@ -354,7 +354,7 @@ test('level=transactions with payeeId=__none__ filters to the no-payee bucket (p
 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
-      { date: { $gte: '2026-11-01', $lte: '2026-11-30' }, tombstone: false, transfer_id: null, category: 'catA', payee: null },
+      { $and: [{ date: { $gte: '2026-11-01' } }, { date: { $lte: '2026-11-30' } }], tombstone: false, transfer_id: null, category: 'catA', payee: null },
     ]);
   });
 });
@@ -425,6 +425,32 @@ test('a missing or malformed month 400s', async () => {
       headers: AUTH_HEADERS,
     });
     expect(malformed.status).toBe(400);
+  });
+});
+
+test('date=YYYY-MM-DD scopes the breakdown to that single day', async () => {
+  const client = stubClient({
+    transactions: [{ groupId: 'group1', amountCents: -1200 }],
+    category_groups: [{ id: 'group1', name: 'Food', is_income: false }],
+  });
+  getActualClient.mockResolvedValue(client);
+
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/spending-breakdown?date=2026-10-15&level=groups`, { headers: AUTH_HEADERS });
+    expect(res.status).toBe(200);
+    expect((await res.json()).total).toBe(1200);
+    expect(serializedQueryFor(client, 'transactions').filterExpressions[0].date).toBe('2026-10-15');
+  });
+});
+
+test('month and date together, or a malformed date, 400', async () => {
+  getActualClient.mockResolvedValue(stubClient({}));
+
+  await withServer(async (base) => {
+    const both = await fetch(`${base}/api/spending-breakdown?month=2026-10&date=2026-10-15&level=groups`, { headers: AUTH_HEADERS });
+    expect(both.status).toBe(400);
+    const badDate = await fetch(`${base}/api/spending-breakdown?date=2026-10&level=groups`, { headers: AUTH_HEADERS });
+    expect(badDate.status).toBe(400);
   });
 });
 

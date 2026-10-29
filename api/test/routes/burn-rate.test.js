@@ -155,7 +155,7 @@ test('days is a running cumulative total of non-transfer, non-income spending fr
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-10-01', $lte: '2026-10-26' },
+        $and: [{ date: { $gte: '2026-10-01' } }, { date: { $lte: '2026-10-26' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,
@@ -188,7 +188,7 @@ test('a past month: days runs through the whole month, not just "today"', async 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-09-01', $lte: '2026-09-30' },
+        $and: [{ date: { $gte: '2026-09-01' } }, { date: { $lte: '2026-09-30' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,
@@ -219,7 +219,7 @@ test('the current month on the 1st: days has exactly one entry', async () => {
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-10-01', $lte: '2026-10-01' },
+        $and: [{ date: { $gte: '2026-10-01' } }, { date: { $lte: '2026-10-01' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,
@@ -258,7 +258,7 @@ test("the AQL filter excludes transfer_id and income groups (assert on the real 
     const serialized = serializedQueryFor(client, 'transactions');
     expect(serialized.filterExpressions).toEqual([
       {
-        date: { $gte: '2026-10-01', $lte: '2026-10-26' },
+        $and: [{ date: { $gte: '2026-10-01' } }, { date: { $lte: '2026-10-26' } }],
         tombstone: false,
         transfer_id: null,
         'category.group.is_income': false,

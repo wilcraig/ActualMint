@@ -102,7 +102,7 @@ test('splits the month into income categories and expense groups with nested cat
 
   const { filterExpressions, groupExpressions } = client.aqlQuery.mock.calls[0][0].serialize();
   expect(filterExpressions[0]).toEqual({
-    date: { $gte: '2026-10-01', $lte: '2026-10-31' },
+    $and: [{ date: { $gte: '2026-10-01' } }, { date: { $lte: '2026-10-31' } }],
     tombstone: false,
     transfer_id: null,
     starting_balance_flag: false,
