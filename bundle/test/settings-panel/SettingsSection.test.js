@@ -19,11 +19,11 @@ test('mounts the text-size pills and Mint-theme checkbox, applying the saved def
 
   const checkbox = document.querySelector('input[type="checkbox"]');
   expect(checkbox.checked).toBe(false);
-  expect(document.getElementById('actualmint-mint-theme')).toBeNull();
+  expect(document.getElementById('insights-fresh-theme')).toBeNull();
 });
 
-test('loads a previously saved text size and Mint-theme choice', async () => {
-  window.localStorage.setItem(TEXT_SCALE_KEY, '19');
+test('loads a text size and theme choice saved before the rename (old storage keys)', async () => {
+  window.localStorage.setItem('actualmint:textScalePx', '19');
   window.localStorage.setItem('actualmint-mint-theme-enabled', 'true');
   new SettingsSection({ target: document.getElementById('host') });
   await Promise.resolve();
@@ -32,7 +32,7 @@ test('loads a previously saved text size and Mint-theme choice', async () => {
   expect(document.getElementById('actualmint-text-size-pill-normal').getAttribute('aria-pressed')).toBe('false');
   expect(document.getElementById('actualmint-text-scale').textContent).toContain(`zoom: ${19 / 13}`);
   expect(document.querySelector('input[type="checkbox"]').checked).toBe(true);
-  expect(document.getElementById('actualmint-mint-theme')).not.toBeNull();
+  expect(document.getElementById('insights-fresh-theme')).not.toBeNull();
 });
 
 test('clicking a text-size pill applies and persists the new size', async () => {
@@ -49,7 +49,7 @@ test('clicking a text-size pill applies and persists the new size', async () => 
   expect(document.getElementById('actualmint-text-size-pill-normal').getAttribute('aria-pressed')).toBe('false');
 });
 
-test('toggling the Mint-theme checkbox applies and persists the choice', async () => {
+test('toggling the Fresh theme checkbox applies and persists the choice', async () => {
   new SettingsSection({ target: document.getElementById('host') });
   await Promise.resolve();
 
@@ -58,15 +58,15 @@ test('toggling the Mint-theme checkbox applies and persists the choice', async (
   checkbox.dispatchEvent(new Event('change', { bubbles: true }));
   await Promise.resolve();
 
-  expect(document.getElementById('actualmint-mint-theme')).not.toBeNull();
-  expect(window.localStorage.getItem('actualmint-mint-theme-enabled')).toBe('true');
+  expect(document.getElementById('insights-fresh-theme')).not.toBeNull();
+  expect(window.localStorage.getItem('insights:freshThemeEnabled')).toBe('true');
 
   checkbox.checked = false;
   checkbox.dispatchEvent(new Event('change', { bubbles: true }));
   await Promise.resolve();
 
-  expect(document.getElementById('actualmint-mint-theme')).toBeNull();
-  expect(window.localStorage.getItem('actualmint-mint-theme-enabled')).toBe('false');
+  expect(document.getElementById('insights-fresh-theme')).toBeNull();
+  expect(window.localStorage.getItem('insights:freshThemeEnabled')).toBe('false');
 });
 
 test('defaults to expanded, and clicking the header toggle hides/shows the settings content', async () => {

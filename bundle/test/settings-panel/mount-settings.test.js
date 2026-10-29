@@ -94,7 +94,7 @@ test('keeps watching (no arbitrary timeout) until the Themes card appears, then 
   expect(container.previousElementSibling).toBe(themesCard);
 });
 
-test('dispatches actualmint:settings-attached on the document each time it attaches', () => {
+test('dispatches insights:settings-attached on the document each time it attaches', () => {
   renderThemesCard();
   class FakeSection {
     constructor() {}
@@ -107,7 +107,7 @@ test('dispatches actualmint:settings-attached on the document each time it attac
   // absolute call count isn't reliable across the whole suite -- only that
   // it increases by at least one per attach this test itself triggers.
   const listener = vi.fn();
-  document.addEventListener('actualmint:settings-attached', listener);
+  document.addEventListener('insights:settings-attached', listener);
 
   mountSettingsSection(document, window, FakeSection);
   const beforeFirstAttach = listener.mock.calls.length;
@@ -123,7 +123,7 @@ test('dispatches actualmint:settings-attached on the document each time it attac
   window.history.pushState({}, '', '/settings');
   expect(listener.mock.calls.length).toBeGreaterThan(afterFirstAttach);
 
-  document.removeEventListener('actualmint:settings-attached', listener);
+  document.removeEventListener('insights:settings-attached', listener);
 });
 
 test('copies the Themes card\'s own border/background/padding onto the container', () => {

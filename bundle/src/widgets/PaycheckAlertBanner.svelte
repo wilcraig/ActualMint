@@ -30,7 +30,7 @@
       const data = await response.json();
       alerts = data.alerts;
     } catch (err) {
-      errorMessage = 'Paycheck alerts unavailable: could not reach actualmint-api.';
+      errorMessage = 'Paycheck alerts unavailable: could not reach insights-api.';
     }
   }
 

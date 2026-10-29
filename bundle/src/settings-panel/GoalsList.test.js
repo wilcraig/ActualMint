@@ -354,7 +354,7 @@ test('clearing an existing goal\'s date field shows an inline error and never PU
   expect(row.querySelector('.goal-row-error').textContent).toContain('Choose a target date');
 });
 
-test('refetches goals/categories/accounts when actualmint:settings-attached fires', async () => {
+test('refetches goals/categories/accounts when insights:settings-attached fires', async () => {
   mockDefaultFetch({ goals: [] });
 
   mountWidget();
@@ -376,7 +376,7 @@ test('refetches goals/categories/accounts when actualmint:settings-attached fire
     ],
   });
 
-  document.dispatchEvent(new Event('actualmint:settings-attached'));
+  document.dispatchEvent(new Event('insights:settings-attached'));
   await flush();
   await flush();
   await flush();

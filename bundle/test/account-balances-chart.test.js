@@ -295,7 +295,7 @@ test('renders the inline error treatment when fetch throws', async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(target.textContent).toContain('could not reach actualmint-api');
+  expect(target.textContent).toContain('could not reach insights-api');
 });
 
 test('a slower in-flight request that resolves after a newer one does not clobber the newer range', async () => {

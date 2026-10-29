@@ -1,11 +1,11 @@
 <script>
   import { onMount } from 'svelte';
   import { PRESETS, loadSavedScale, saveScale, applyScale } from '../text-scale';
-  import { applyMintTheme, loadSavedMintThemeEnabled, saveMintThemeEnabled } from '../mint-theme';
+  import { applyFreshTheme, loadSavedFreshThemeEnabled, saveFreshThemeEnabled } from '../fresh-theme';
   import GoalsList from './GoalsList.svelte';
 
   let currentPx = $state(PRESETS[0].px);
-  let mintEnabled = $state(false);
+  let freshEnabled = $state(false);
   // Local-only (not persisted, per the task's own card layout) -- defaults
   // to expanded so the settings this card already showed stay visible
   // without the user needing to discover a new toggle.
@@ -19,12 +19,12 @@
       storage = null;
     }
     currentPx = storage ? loadSavedScale(storage) : PRESETS[0].px;
-    mintEnabled = storage ? loadSavedMintThemeEnabled(storage) : false;
+    freshEnabled = storage ? loadSavedFreshThemeEnabled(storage) : false;
     // index.js already applies both on every page load; re-applying here
     // too is harmless (both are idempotent) and keeps this section
     // self-contained if it's ever reused outside index.js's load order.
     applyScale(document, currentPx);
-    applyMintTheme(document, mintEnabled);
+    applyFreshTheme(document, freshEnabled);
   });
 
   function toggleExpanded() {
@@ -41,11 +41,11 @@
     }
   }
 
-  function handleMintToggle(event) {
-    mintEnabled = event.target.checked;
-    applyMintTheme(document, mintEnabled);
+  function handleFreshToggle(event) {
+    freshEnabled = event.target.checked;
+    applyFreshTheme(document, freshEnabled);
     try {
-      saveMintThemeEnabled(window.localStorage, mintEnabled);
+      saveFreshThemeEnabled(window.localStorage, freshEnabled);
     } catch {
       // No persistence available -- the theme still applies for this page.
     }
@@ -59,7 +59,7 @@
     aria-expanded={expanded ? 'true' : 'false'}
     onclick={toggleExpanded}
   >
-    <h3 class="section-title">ActualMint</h3>
+    <h3 class="section-title">Actual Insights</h3>
     <svg
       class="chevron"
       class:chevron-expanded={expanded}
@@ -84,7 +84,7 @@
       <div class="setting-row">
         <span class="setting-text">
           <span class="setting-label" id="actualmint-text-size-label">Text size</span>
-          <span class="setting-desc">Make ActualMint's own widgets larger or smaller.</span>
+          <span class="setting-desc">Make the whole app larger or smaller.</span>
         </span>
         <span class="pill-group" role="group" aria-labelledby="actualmint-text-size-label">
           {#each PRESETS as preset (preset.id)}
@@ -104,15 +104,15 @@
 
       <div class="setting-row">
         <span class="setting-text">
-          <span class="setting-label">Mint-style theme</span>
-          <span class="setting-desc">Recolor Actual to look more like a classic budgeting app.</span>
+          <span class="setting-label">Fresh theme</span>
+          <span class="setting-desc">Recolor Actual in a light, airy teal and white.</span>
         </span>
         <label class="setting-toggle switch">
           <input
             type="checkbox"
             class="switch__input"
-            checked={mintEnabled}
-            onchange={handleMintToggle}
+            checked={freshEnabled}
+            onchange={handleFreshToggle}
           />
           <span class="switch__track"><span class="switch__thumb"></span></span>
         </label>

@@ -61,7 +61,7 @@
 
       data = await response.json();
     } catch (err) {
-      errorMessage = 'Savings rate unavailable: could not reach actualmint-api.';
+      errorMessage = 'Savings rate unavailable: could not reach insights-api.';
     }
   }
 

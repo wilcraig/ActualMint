@@ -239,5 +239,5 @@ test('renders the inline error treatment when fetch throws', async () => {
   const target = mountWidget();
   await flush();
 
-  expect(target.textContent).toContain('could not reach actualmint-api');
+  expect(target.textContent).toContain('could not reach insights-api');
 });

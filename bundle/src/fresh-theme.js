@@ -12,15 +12,18 @@
 // `!important` sidesteps that entirely -- it wins regardless of which theme
 // is active or where in `<head>` Actual's style tag happens to sit.
 
-const STYLE_ELEMENT_ID = 'actualmint-mint-theme';
-const STORAGE_KEY = 'actualmint-mint-theme-enabled';
+const STYLE_ELEMENT_ID = 'insights-fresh-theme';
+export const STORAGE_KEY = 'insights:freshThemeEnabled';
+// Saved under the project's original name; still read so an existing
+// choice survives the rename.
+export const LEGACY_STORAGE_KEY = 'actualmint-mint-theme-enabled';
 
-// A Mint.com-styled palette: a teal-green brand color (replacing Actual's
-// default blue) as the primary interactive color, a soft mint/cream page
+// The "Fresh" palette: a teal-green brand color (replacing Actual's default
+// blue) as the primary interactive color, a soft green-tinted cream page
 // chrome (replacing Actual's default navy-tinted light background), and a
 // categorical chart palette anchored on the same teal for pacing bars and
 // drill-down donuts.
-export const MINT_PALETTE = {
+export const FRESH_PALETTE = {
   '--palette-blue50': '#f1fbf8',
   '--palette-blue100': '#d7f3ea',
   '--palette-blue150': '#b7e8d9',
@@ -70,20 +73,20 @@ export const MINT_PALETTE = {
 // Overriding these two tokens directly keeps the sidebar a neutral light
 // gray without touching navy900 itself, which other elements still use
 // (and which this theme needs to keep dark for contrast elsewhere).
-export const MINT_COLOR_OVERRIDES = {
+export const FRESH_COLOR_OVERRIDES = {
   '--color-sidebarBackground': '#f2f4f3',
   '--color-sidebarItemText': '#0b2419',
 };
 
 function buildCss() {
-  const allDecls = { ...MINT_PALETTE, ...MINT_COLOR_OVERRIDES };
+  const allDecls = { ...FRESH_PALETTE, ...FRESH_COLOR_OVERRIDES };
   const decls = Object.entries(allDecls)
     .map(([name, value]) => `${name}: ${value} !important;`)
     .join(' ');
   return `:root { ${decls} }`;
 }
 
-export function applyMintTheme(doc, enabled) {
+export function applyFreshTheme(doc, enabled) {
   let styleEl = doc.getElementById(STYLE_ELEMENT_ID);
   if (enabled) {
     if (!styleEl) {
@@ -97,10 +100,10 @@ export function applyMintTheme(doc, enabled) {
   }
 }
 
-export function loadSavedMintThemeEnabled(storage) {
-  return storage.getItem(STORAGE_KEY) === 'true';
+export function loadSavedFreshThemeEnabled(storage) {
+  return (storage.getItem(STORAGE_KEY) ?? storage.getItem(LEGACY_STORAGE_KEY)) === 'true';
 }
 
-export function saveMintThemeEnabled(storage, enabled) {
+export function saveFreshThemeEnabled(storage, enabled) {
   storage.setItem(STORAGE_KEY, enabled ? 'true' : 'false');
 }

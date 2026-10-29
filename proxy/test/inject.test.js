@@ -2,9 +2,9 @@ const { injectTags } = require('../src/inject');
 
 test('inserts tags before the last </body>', () => {
   const html = '<html><body><p>hi</p></body></html>';
-  const out = injectTags(html, '<script src="/actualmint/bundle.js"></script>');
+  const out = injectTags(html, '<script src="/insights/bundle.js"></script>');
   expect(out).toBe(
-    '<html><body><p>hi</p><script src="/actualmint/bundle.js"></script></body></html>'
+    '<html><body><p>hi</p><script src="/insights/bundle.js"></script></body></html>'
   );
 });
 

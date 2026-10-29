@@ -1,5 +1,5 @@
 // Sends a tab that lands on Actual's root or Budget page to the Reports
-// page instead, where ActualMint's widgets live - once per tab, so it
+// page instead, where Actual Insights' widgets live - once per tab, so it
 // never fights deliberate navigation back to Budget later.
 //
 // Route paths confirmed against the actual, open-source
@@ -10,7 +10,7 @@
 // `/budget` renders the Budget view, and `/reports/*` renders Reports
 // (which also matches `/reports` itself).
 
-const REDIRECTED_KEY = 'actualmint:redirected';
+const REDIRECTED_KEY = 'insights:redirected';
 const REPORTS_PATH = '/reports';
 const REDIRECT_FROM_PATHS = new Set(['/', '/budget']);
 

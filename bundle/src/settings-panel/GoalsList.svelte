@@ -62,7 +62,7 @@
       accounts = accountsBody.accounts || [];
       resetNewEntityId();
     } catch {
-      loadErrorMessage = 'Goals unavailable: could not reach actualmint-api.';
+      loadErrorMessage = 'Goals unavailable: could not reach insights-api.';
     } finally {
       loaded = true;
     }
@@ -76,9 +76,9 @@
   // elsewhere in Actual).
   onMount(() => {
     load();
-    document.addEventListener('actualmint:settings-attached', load);
+    document.addEventListener('insights:settings-attached', load);
     return () => {
-      document.removeEventListener('actualmint:settings-attached', load);
+      document.removeEventListener('insights:settings-attached', load);
     };
   });
 
@@ -141,7 +141,7 @@
       // edit made to the same row while this save was still in flight.
       goals = goals.map((g) => (g.id === goal.id ? { ...g, error: null } : g));
     } catch {
-      goal.error = 'Save failed: could not reach actualmint-api.';
+      goal.error = 'Save failed: could not reach insights-api.';
       goals = goals.map((g) => (g.id === goal.id ? goal : g));
     }
   }
@@ -190,7 +190,7 @@
 
       goals = goals.filter((g) => g.id !== goal.id);
     } catch {
-      goal.error = 'Delete failed: could not reach actualmint-api.';
+      goal.error = 'Delete failed: could not reach insights-api.';
       goals = goals.map((g) => (g.id === goal.id ? goal : g));
     }
   }
@@ -241,7 +241,7 @@
       newAmountDollars = '';
       newDate = '';
     } catch {
-      newGoalError = 'Save failed: could not reach actualmint-api.';
+      newGoalError = 'Save failed: could not reach insights-api.';
     }
   }
 </script>

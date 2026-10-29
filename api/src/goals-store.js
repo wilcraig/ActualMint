@@ -4,7 +4,8 @@ const path = require('path');
 
 // Where goals.json lives. In the container this is a bind-mounted volume;
 // tests pass an explicit dataDir so they never touch /data.
-const DATA_DIR = process.env.ACTUALMINT_DATA_DIR || '/data';
+// ACTUALMINT_DATA_DIR is the variable's name from before the rename.
+const DATA_DIR = process.env.INSIGHTS_DATA_DIR || process.env.ACTUALMINT_DATA_DIR || '/data';
 
 const FILE_NAME = 'goals.json';
 

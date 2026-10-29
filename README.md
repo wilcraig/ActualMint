@@ -1,11 +1,16 @@
-# ActualMint
+# Actual Insights
 
-> **Built with Claude.** ActualMint was written largely with
+> **Built with Claude.** Actual Insights was written largely with
 > [Claude](https://claude.com/claude-code), Anthropic's AI coding assistant.
 > A human guided the design throughout, reviewed the changes, and verified
 > the results against a real budget along the way.
 
-ActualMint adds a Mint/Simplifi-style layer on top of a self-hosted
+> **Formerly ActualMint.** The project was renamed to Actual Insights. Older
+> setups keep working: `{{ACTUALMINT:...}}` placeholders still mount,
+> `ACTUALMINT_*` environment variables are still read, and text-size and theme
+> choices saved under the old name carry over.
+
+Actual Insights adds a layer of charts and budgeting insights on top of a self-hosted
 [Actual Budget](https://actualbudget.org) instance:
 
 - **Charts:** a set of interactive charts, including cash-flow Sankey,
@@ -13,7 +18,7 @@ ActualMint adds a Mint/Simplifi-style layer on top of a self-hosted
   thermometers, goal-aware balance history, and a bill radar.
 - **Budget tools:** budget-pacing widgets, a projected month-end net,
   paycheck alerts, and a bills timeline.
-- **App-wide settings:** a Mint-style theme and a global text-size control.
+- **App-wide settings:** an optional "Fresh" color theme and a global text-size control.
 
 All of it is injected into Actual's own Reports page and native UI, with zero
 changes to Actual itself.
@@ -23,8 +28,8 @@ changes to Actual itself.
 ## Why
 
 Actual Budget's own Reports page supports a "Text widget" that renders plain
-markdown. ActualMint hijacks that mechanism: drop in a small placeholder
-string (`{{ACTUALMINT:spending-sankey:null}}`) and a live, data-backed widget
+markdown. Actual Insights hijacks that mechanism: drop in a small placeholder
+string (`{{INSIGHTS:spending-sankey:null}}`) and a live, data-backed widget
 mounts in its place. A reverse proxy sits in front of Actual and injects one
 `<script>`/`<link>` pair into every page it serves, so the whole thing is a
 pure add-on: no fork of Actual, no patched client, nothing to rebase when
@@ -41,7 +46,7 @@ The screenshots use made-up demo data.
 
 ### Monthly cash-flow Sankey
 
-`{{ACTUALMINT:spending-sankey:null}}`
+`{{INSIGHTS:spending-sankey:null}}`
 
 ![Cash-flow Sankey](docs/screenshots/cash-flow-sankey.jpg)
 
@@ -62,7 +67,7 @@ again to fold it back up.
 
 ### Spending treemap
 
-`{{ACTUALMINT:spending-treemap:null}}`
+`{{INSIGHTS:spending-treemap:null}}`
 
 ![Spending treemap](docs/screenshots/spending-treemap.jpg)
 
@@ -73,7 +78,7 @@ biggest buckets at a glance.
 
 ### Spending calendar
 
-`{{ACTUALMINT:spending-heatmap:"month"}}` or `{{ACTUALMINT:spending-heatmap:"year"}}`
+`{{INSIGHTS:spending-heatmap:"month"}}` or `{{INSIGHTS:spending-heatmap:"year"}}`
 
 | Month view | Click a day |
 | --- | --- |
@@ -99,7 +104,7 @@ from groups to categories, then merchants, then the individual transactions.
 
 ### Spending breakdown donut
 
-`{{ACTUALMINT:spending-breakdown-donut:[]}}`
+`{{INSIGHTS:spending-breakdown-donut:[]}}`
 
 ![Spending breakdown donut](docs/screenshots/spending-breakdown-donut.jpg)
 
@@ -111,7 +116,7 @@ Pass a list of group ids to limit it to just those groups, for example
 
 ### Burn rate
 
-`{{ACTUALMINT:burn-rate:null}}`
+`{{INSIGHTS:burn-rate:null}}`
 
 ![Burn rate](docs/screenshots/burn-rate.jpg)
 
@@ -122,7 +127,7 @@ footer shows spent versus budgeted so far.
 
 ### Net savings rate gauge
 
-`{{ACTUALMINT:savings-rate-gauge:[]}}`
+`{{INSIGHTS:savings-rate-gauge:[]}}`
 
 ![Net savings rate gauge](docs/screenshots/savings-rate-gauge.jpg)
 
@@ -140,20 +145,20 @@ spending.
 
 ### Sinking-fund goal thermometers
 
-`{{ACTUALMINT:savings-goals-thermometers:[]}}`
+`{{INSIGHTS:savings-goals-thermometers:[]}}`
 
 ![Sinking-fund thermometers](docs/screenshots/sinking-fund-thermometers.jpg)
 
 One bar per savings goal on a budget category (Christmas, vacation, next
 car, …). Each shows the category's current balance against its target, the
-target date, and the days left. Goals are set in the ActualMint settings card
+target date, and the days left. Goals are set in the Actual Insights settings card
 (see [Savings goals](#savings-goals)). Pass category ids to show only some of
 them.
 
 ### Account balances with a goal corridor
 
-`{{ACTUALMINT:account-balances:[]}}`, or
-`{{ACTUALMINT:account-balances:{"accountIds":[],"labelContent":"amount"}}}`
+`{{INSIGHTS:account-balances:[]}}`, or
+`{{INSIGHTS:account-balances:{"accountIds":[],"labelContent":"amount"}}}`
 
 ![Account balances with a goal corridor](docs/screenshots/account-balances-goal-corridor.jpg)
 
@@ -169,7 +174,7 @@ what each band's label shows: `"both"` (the default), `"amount"`, or
 
 ### Subscription & bill radar
 
-`{{ACTUALMINT:subscription-radar:null}}`
+`{{INSIGHTS:subscription-radar:null}}`
 
 ![Subscription and bill radar](docs/screenshots/subscription-radar.jpg)
 
@@ -203,14 +208,14 @@ treemap always agree with each other:
 ## Savings goals
 
 The two goal-based charts (the thermometers and the balance-history goal
-line) read from **savings goals** you set in a new **ActualMint** card on
+line) read from **savings goals** you set in a new **Actual Insights** card on
 Actual's Settings page:
 
 - **What a goal tracks:** either a budget category (a sinking fund) or an
   account (for example, a 529).
 - **What a goal includes:** a target amount and a target date.
 - **Where goals are stored:** in `goals.json` under
-  `ACTUALMINT_DATA_DIR`. Mount a volume there; see
+  `INSIGHTS_DATA_DIR`. Mount a volume there; see
   [Configuration](#configuration).
 
 ## Other features
@@ -232,24 +237,24 @@ Actual's Settings page:
   Pick the type, check off categories, accounts, or groups, and copy the
   result, so you never hand-write one. It lives next to Actual's own "Add new
   widget" button on the Reports toolbar.
-- **Mint-style theme:** a one-click re-skin of Actual's own color palette
+- **Fresh theme:** a one-click re-skin of Actual's own color palette
   (Budget, Transactions, and Reports alike) into a light, airy teal-and-white
-  look reminiscent of Mint.com.
-  - **Where it's set:** from the "ActualMint" card on Actual's Settings page,
+  look.
+  - **Where it's set:** from the "Actual Insights" card on Actual's Settings page,
     saved per browser.
   - **Tip:** pick Actual's own **Light** theme first, since the recolor
     assumes a light background.
 - **Global text-size control:** set from the same settings card. It scales
   the *entire* app (budget tables, transaction registers, reports,
-  schedules), not just ActualMint's widgets. It's saved per browser.
+  schedules), not just Actual Insights' widgets. It's saved per browser.
 
 | Pacing bars and drill-down | Reports widgets |
 | --- | --- |
-| ![A budget-pacing-bars widget with a category's drill-down donut open, in the Mint-style theme](docs/screenshots/pacing-bars-drilldown.jpg) | ![Reports page with pacing bars, projected month-end net, and an account-balances chart alongside Actual's own cards](docs/screenshots/reports-widgets.jpg) |
+| ![A budget-pacing-bars widget with a category's drill-down donut open, in the Fresh theme](docs/screenshots/pacing-bars-drilldown.jpg) | ![Reports page with pacing bars, projected month-end net, and an account-balances chart alongside Actual's own cards](docs/screenshots/reports-widgets.jpg) |
 
 | Widget builder | Settings |
 | --- | --- |
-| ![Widget builder button next to Actual's own "Add new widget" button, panel open with a generated placeholder](docs/screenshots/widget-builder.jpg) | ![The ActualMint settings card below Actual's own Themes card: text size, Mint-style theme, and savings goals](docs/screenshots/settings-card.jpg) |
+| ![Widget builder button next to Actual's own "Add new widget" button, panel open with a generated placeholder](docs/screenshots/widget-builder.jpg) | ![The Actual Insights settings card below Actual's own Themes card: text size, Fresh theme, and savings goals](docs/screenshots/settings-card.jpg) |
 
 | Text size control |
 | --- |
@@ -258,19 +263,19 @@ Actual's Settings page:
 ## Architecture
 
 ```
-browser --(HTTPS)--> actualmint-proxy --> abt/actual (Actual's own server)
+browser --(HTTPS)--> insights-proxy --> abt/actual (Actual's own server)
                            |
-                           `--(/api/*)--> actualmint-api --> actual (direct)
+                           `--(/api/*)--> insights-api --> actual (direct)
 ```
 
-- **`proxy/`** (`actualmint-proxy`): a reverse proxy in front of Actual, or
+- **`proxy/`** (`insights-proxy`): a reverse proxy in front of Actual, or
   in front of an [Actual Budget Tweaks](https://github.com/aelxxs/actual-budget-tweaks)
   sidecar if you run one. It passes everything through unchanged, except
   that it:
   - injects the bundle's `<script>`/`<link>` tags into HTML responses,
   - serves the bundle's static files,
-  - proxies `/api/*` to `actualmint-api`.
-- **`api/`** (`actualmint-api`): a small Express API backed by a single
+  - proxies `/api/*` to `insights-api`.
+- **`api/`** (`insights-api`): a small Express API backed by a single
   long-running [`@actual-app/api`](https://actualbudget.org/docs/api/)
   client connection. It's read-only, except for savings goals. Every request
   is validated against Actual's own session token, the same mechanism
@@ -278,21 +283,21 @@ browser --(HTTPS)--> actualmint-proxy --> abt/actual (Actual's own server)
   manage.
 - **`bundle/`**: the browser-side code. That's the Svelte 5 + D3 widgets, the
   widget registry and builder panel, the settings card, and the mount logic
-  that scans the page for `{{ACTUALMINT:...}}` placeholders.
+  that scans the page for `{{INSIGHTS:...}}` placeholders.
 
 ## Configuration
 
-### `actualmint-proxy`
+### `insights-proxy`
 
 | Env var | Default | Purpose |
 | --- | --- | --- |
 | `ABT_ORIGIN` | `http://abt:3005` | Upstream origin to proxy to (Actual, or an ABT sidecar in front of it) |
-| `ACTUALMINT_API_ORIGIN` | `http://actualmint-api:3011` | Where `/api/*` requests are forwarded |
+| `INSIGHTS_API_ORIGIN` | `http://insights-api:3011` | Where `/api/*` requests are forwarded |
 | `PORT` | `3010` | Port the proxy listens on |
-| `ACTUALMINT_BUNDLE_PATH` | `/actualmint` | URL path prefix the bundle is served under |
-| `STATIC_DIR` | `./static` | Filesystem directory served under `ACTUALMINT_BUNDLE_PATH` (the bundle's build output) |
+| `INSIGHTS_BUNDLE_PATH` | `/insights` | URL path prefix the bundle is served under |
+| `STATIC_DIR` | `./static` | Filesystem directory served under `INSIGHTS_BUNDLE_PATH` (the bundle's build output) |
 
-### `actualmint-api`
+### `insights-api`
 
 | Env var | Purpose |
 | --- | --- |
@@ -300,7 +305,7 @@ browser --(HTTPS)--> actualmint-proxy --> abt/actual (Actual's own server)
 | `ACTUAL_SERVER_PASSWORD` | Actual's server password |
 | `ACTUAL_SYNC_ID` | The budget's sync *group* id (Settings → Advanced Settings → Sync ID in Actual) |
 | `ACTUAL_E2E_PASSWORD` | Only needed if the budget has end-to-end encryption enabled |
-| `ACTUALMINT_DATA_DIR` | Where `goals.json` is stored (default `/data`). Mount a volume here so goals survive container rebuilds |
+| `INSIGHTS_DATA_DIR` | Where `goals.json` is stored (default `/data`). Mount a volume here so goals survive container rebuilds |
 | `PORT` | `3011` by default |
 | `TZ` | Set this to your own timezone, since several widgets do day-of-month math |
 
@@ -310,12 +315,12 @@ Each package is independent and has its own test suite:
 
 ```sh
 cd bundle && npm install && npm test   # Svelte widgets, vitest
-cd api && npm install && npm test      # actualmint-api, jest
-cd proxy && npm install && npm test    # actualmint-proxy, jest
+cd api && npm install && npm test      # insights-api, jest
+cd proxy && npm install && npm test    # insights-proxy, jest
 ```
 
 The bundle is a Vite build (`cd bundle && npx vite build`) that produces
-`dist/bundle.js` and `dist/bundle.css`. `actualmint-proxy` serves those as a
+`dist/bundle.js` and `dist/bundle.css`. `insights-proxy` serves those as a
 read-only volume mount, so rebuilding the bundle never requires rebuilding or
 restarting the proxy or API containers.
 

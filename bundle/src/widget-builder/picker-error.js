@@ -2,7 +2,7 @@
 // there is nothing to show. `response` is null when the request threw (network failure).
 export function describePickerError(response) {
   if (response === null) {
-    return 'Could not load picker data: could not reach actualmint-api.';
+    return 'Could not load picker data: could not reach insights-api.';
   }
   if (response.ok) {
     return null;

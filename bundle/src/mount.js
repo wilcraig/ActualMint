@@ -5,6 +5,23 @@
 
 const CLOSING = '}}';
 
+// Placeholders are written as `{{INSIGHTS:<widget-id>:<json>}}`. The
+// project's original name lives on in `{{ACTUALMINT:...}}`, which is still
+// recognized so dashboards created before the rename keep working.
+export const PLACEHOLDER_PREFIX = '{{INSIGHTS:';
+export const LEGACY_PLACEHOLDER_PREFIX = '{{ACTUALMINT:';
+
+// Every prefix form a widget's placeholder may use, given either form.
+function prefixVariants(prefix) {
+  for (const [current, other] of [
+    [PLACEHOLDER_PREFIX, LEGACY_PLACEHOLDER_PREFIX],
+    [LEGACY_PLACEHOLDER_PREFIX, PLACEHOLDER_PREFIX],
+  ]) {
+    if (prefix.startsWith(current)) return [prefix, other + prefix.slice(current.length)];
+  }
+  return [prefix];
+}
+
 /**
  * Walk the live DOM for a text node whose content starts with `prefix`,
  * parse the JSON between the prefix and the matching closing `}}`, and
@@ -17,11 +34,12 @@ const CLOSING = '}}';
  * every later call. `skip` lets a caller pass in the text nodes it has
  * already handled so the walk continues past them to find the next one.
  *
- * @param {string} prefix e.g. "{{ACTUALMINT:pacing-bars:"
+ * @param {string | string[]} prefix e.g. "{{INSIGHTS:pacing-bars:", or several forms to accept
  * @param {WeakSet<Text>} [skip]
  * @returns {{ node: HTMLElement, textNode: Text, config: unknown } | null}
  */
 export function findPlaceholder(prefix, skip) {
+  const prefixes = Array.isArray(prefix) ? prefix : [prefix];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 
   let textNode;
@@ -32,13 +50,21 @@ export function findPlaceholder(prefix, skip) {
     const text = textNode.nodeValue;
     if (!text) continue;
 
-    const start = text.indexOf(prefix);
+    let start = -1;
+    let matched = null;
+    for (const p of prefixes) {
+      const at = text.indexOf(p);
+      if (at !== -1 && (start === -1 || at < start)) {
+        start = at;
+        matched = p;
+      }
+    }
     if (start === -1) continue;
 
-    const jsonStart = start + prefix.length;
+    const jsonStart = start + matched.length;
 
     // The JSON body can itself be an object ending in `}` (e.g.
-    // `{{ACTUALMINT:month-end-net:{}}}`), so the first `}}` found isn't
+    // `{{INSIGHTS:month-end-net:{}}}`), so the first `}}` found isn't
     // necessarily the real closing delimiter. Try each successive `}}`
     // occurrence in turn until one parses as valid JSON.
     let config;
@@ -90,10 +116,11 @@ const OBSERVE_OPTIONS = { childList: true, subtree: true, characterData: true };
  * DOM) and mount the widget into a brand-new sibling `<div>` we create for
  * that purpose.
  *
- * @param {string} prefix
+ * @param {string} prefix either placeholder form; the other form is accepted too
  * @param {(mountHost: HTMLElement, config: unknown) => void} render
  */
 export function mountWidget(prefix, render) {
+  const prefixes = prefixVariants(prefix);
   // Keyed by the placeholder text node itself (not the host element it
   // started out in) because wrapping moves the text node under a new
   // parent — tracking by its original parent would make every subsequent
@@ -115,7 +142,7 @@ export function mountWidget(prefix, render) {
     // makes each already-handled placeholder's text node invisible to the
     // next call so the walk continues on to find the next one.
     for (;;) {
-      const found = findPlaceholder(prefix, mounted);
+      const found = findPlaceholder(prefixes, mounted);
       if (!found) break;
 
       const { node: host, textNode, config } = found;
@@ -145,7 +172,7 @@ export function mountWidget(prefix, render) {
       try {
         render(mountHost, config);
       } catch (error) {
-        console.error('[ActualMint] mountWidget render callback threw:', error);
+        console.error('[Actual Insights] mountWidget render callback threw:', error);
       } finally {
         observer.observe(document.body, OBSERVE_OPTIONS);
       }

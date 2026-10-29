@@ -64,7 +64,7 @@ describe('request routing', () => {
     api.received.length = 0;
   });
 
-  test('/api/* is proxied to the actualmint-api origin with the path preserved', async () => {
+  test('/api/* is proxied to the insights-api origin with the path preserved', async () => {
     const res = await get(proxyPort, '/api/budget-pacing?month=2026-10');
 
     expect(JSON.parse(res.body)).toEqual({ origin: 'api', url: '/api/budget-pacing?month=2026-10' });
@@ -89,7 +89,7 @@ describe('request routing', () => {
   });
 
   test('unmatched bundle-prefix paths return 404 and reach neither origin', async () => {
-    const res = await get(proxyPort, '/actualmint/missing.js');
+    const res = await get(proxyPort, '/insights/missing.js');
 
     expect(res.status).toBe(404);
     expect(abt.received).toEqual([]);
@@ -148,7 +148,7 @@ describe('cache-busted bundle tags', () => {
   beforeEach(async () => {
     abt = await startStub('abt');
     api = await startStub('api');
-    staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'actualmint-proxy-static-'));
+    staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'insights-proxy-static-'));
   });
 
   afterEach(() => {
@@ -181,8 +181,8 @@ describe('cache-busted bundle tags', () => {
       const res = await get(proxy.address().port, '/reports');
       const jsMtime = Math.floor(fs.statSync(path.join(staticDir, 'bundle.js')).mtimeMs);
       const cssMtime = Math.floor(fs.statSync(path.join(staticDir, 'bundle.css')).mtimeMs);
-      expect(res.body).toContain(`<script src="/actualmint/bundle.js?v=${jsMtime}"></script>`);
-      expect(res.body).toContain(`<link rel="stylesheet" href="/actualmint/bundle.css?v=${cssMtime}">`);
+      expect(res.body).toContain(`<script src="/insights/bundle.js?v=${jsMtime}"></script>`);
+      expect(res.body).toContain(`<link rel="stylesheet" href="/insights/bundle.css?v=${cssMtime}">`);
     } finally {
       proxy.close();
       htmlOrigin.server.close();
@@ -225,8 +225,8 @@ describe('cache-busted bundle tags', () => {
 
     try {
       const res = await get(proxy.address().port, '/reports');
-      expect(res.body).toContain('<script src="/actualmint/bundle.js"></script>');
-      expect(res.body).toContain('<link rel="stylesheet" href="/actualmint/bundle.css">');
+      expect(res.body).toContain('<script src="/insights/bundle.js"></script>');
+      expect(res.body).toContain('<link rel="stylesheet" href="/insights/bundle.css">');
     } finally {
       proxy.close();
       htmlOrigin.server.close();

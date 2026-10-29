@@ -30,7 +30,7 @@
       const data = await response.json();
       items = data.items;
     } catch (err) {
-      errorMessage = 'Bills timeline unavailable: could not reach actualmint-api.';
+      errorMessage = 'Bills timeline unavailable: could not reach insights-api.';
     }
   }
 

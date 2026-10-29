@@ -39,7 +39,7 @@
 
       data = await response.json();
     } catch (err) {
-      errorMessage = 'Burn rate unavailable: could not reach actualmint-api.';
+      errorMessage = 'Burn rate unavailable: could not reach insights-api.';
     }
   }
 

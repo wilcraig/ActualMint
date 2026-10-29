@@ -1,5 +1,5 @@
 // Finds a stable insertion point on Actual's own Settings page so
-// ActualMint's own settings (text size, Mint-style theme) can live as a
+// Actual Insights' own settings (text size, Fresh theme) can live as a
 // real settings card instead of a floating button on every page.
 //
 // Actual has no plugin API for this, so there's no "add a settings card"

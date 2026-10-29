@@ -117,7 +117,7 @@
         };
       });
     } catch (err) {
-      errorMessage = 'Savings goals unavailable: could not reach actualmint-api.';
+      errorMessage = 'Savings goals unavailable: could not reach insights-api.';
     }
   }
 

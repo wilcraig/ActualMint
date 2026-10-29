@@ -19,6 +19,11 @@ test('loadSavedScale returns a previously saved value', () => {
   expect(loadSavedScale(fakeStorage({ [STORAGE_KEY]: '19' }))).toBe(19);
 });
 
+test('loadSavedScale still reads a size saved before the rename, preferring the new key', () => {
+  expect(loadSavedScale(fakeStorage({ 'actualmint:textScalePx': '23' }))).toBe(23);
+  expect(loadSavedScale(fakeStorage({ 'actualmint:textScalePx': '23', [STORAGE_KEY]: '16' }))).toBe(16);
+});
+
 test('loadSavedScale falls back to the default on a corrupt stored value', () => {
   expect(loadSavedScale(fakeStorage({ [STORAGE_KEY]: 'not-a-number' }))).toBe(13);
 });

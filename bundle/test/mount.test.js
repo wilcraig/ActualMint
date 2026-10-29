@@ -2,8 +2,8 @@ import { findPlaceholder, mountWidget } from '../src/mount';
 import { buildPlaceholder } from '../src/widget-builder/placeholder';
 
 test('finds and parses a placeholder with valid JSON config', () => {
-  document.body.innerHTML = '<div id="host">{{ACTUALMINT:pacing-bars:["catA","catB"]}}</div>';
-  const result = findPlaceholder('{{ACTUALMINT:pacing-bars:');
+  document.body.innerHTML = '<div id="host">{{INSIGHTS:pacing-bars:["catA","catB"]}}</div>';
+  const result = findPlaceholder('{{INSIGHTS:pacing-bars:');
   expect(result).not.toBeNull();
   expect(result.config).toEqual(['catA', 'catB']);
   expect(result.node).toBe(document.getElementById('host'));
@@ -11,28 +11,41 @@ test('finds and parses a placeholder with valid JSON config', () => {
 
 test('returns null when no placeholder is present', () => {
   document.body.innerHTML = '<div>nothing here</div>';
-  expect(findPlaceholder('{{ACTUALMINT:pacing-bars:')).toBeNull();
+  expect(findPlaceholder('{{INSIGHTS:pacing-bars:')).toBeNull();
 });
 
 test('a throwing render callback is caught and does not propagate', () => {
-  document.body.innerHTML = '<div>{{ACTUALMINT:pacing-bars:[]}}</div>';
+  document.body.innerHTML = '<div>{{INSIGHTS:pacing-bars:[]}}</div>';
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
   expect(() => {
-    mountWidget('{{ACTUALMINT:pacing-bars:', () => { throw new Error('boom'); });
+    mountWidget('{{INSIGHTS:pacing-bars:', () => { throw new Error('boom'); });
   }).not.toThrow();
 
   expect(consoleError).toHaveBeenCalled();
 });
 
+test('placeholders written before the rename ({{ACTUALMINT:...}}) still mount, alongside new ones', () => {
+  document.body.innerHTML = `
+    <div id="old">{{ACTUALMINT:pacing-bars:["legacy"]}}</div>
+    <div id="new">{{INSIGHTS:pacing-bars:["current"]}}</div>
+  `;
+
+  const configs = [];
+  mountWidget('{{INSIGHTS:pacing-bars:', (mountHost, config) => configs.push(config));
+
+  expect(configs).toEqual(expect.arrayContaining([['legacy'], ['current']]));
+  expect(configs).toHaveLength(2);
+});
+
 test('mounts every matching placeholder present in the same DOM snapshot', () => {
   document.body.innerHTML = `
-    <div id="a">{{ACTUALMINT:pacing-bars:["x"]}}</div>
-    <div id="b">{{ACTUALMINT:pacing-bars:["y"]}}</div>
+    <div id="a">{{INSIGHTS:pacing-bars:["x"]}}</div>
+    <div id="b">{{INSIGHTS:pacing-bars:["y"]}}</div>
   `;
 
   const mountedHosts = [];
-  mountWidget('{{ACTUALMINT:pacing-bars:', (mountHost, config) => {
+  mountWidget('{{INSIGHTS:pacing-bars:', (mountHost, config) => {
     mountedHosts.push({ mountHost, config });
   });
 
@@ -49,17 +62,17 @@ test('mounts every matching placeholder present in the same DOM snapshot', () =>
 });
 
 test('does not delete the original placeholder text node; hides it instead', () => {
-  document.body.innerHTML = '<div id="host">{{ACTUALMINT:pacing-bars:["catA"]}}</div>';
+  document.body.innerHTML = '<div id="host">{{INSIGHTS:pacing-bars:["catA"]}}</div>';
   const host = document.getElementById('host');
   const originalTextNode = host.firstChild;
   expect(originalTextNode.nodeType).toBe(Node.TEXT_NODE);
 
-  mountWidget('{{ACTUALMINT:pacing-bars:', () => {});
+  mountWidget('{{INSIGHTS:pacing-bars:', () => {});
 
   // The original text node is still in the document (not removed), its
   // content untouched, just wrapped in a hidden element.
   expect(document.body.contains(originalTextNode)).toBe(true);
-  expect(originalTextNode.nodeValue).toContain('{{ACTUALMINT:pacing-bars:');
+  expect(originalTextNode.nodeValue).toContain('{{INSIGHTS:pacing-bars:');
 
   const wrapper = originalTextNode.parentElement;
   expect(wrapper).not.toBe(null);
@@ -69,11 +82,11 @@ test('does not delete the original placeholder text node; hides it instead', () 
 });
 
 test('mounts into a new sibling element rather than clearing the host', () => {
-  document.body.innerHTML = '<div id="host">{{ACTUALMINT:pacing-bars:["catA"]}}</div>';
+  document.body.innerHTML = '<div id="host">{{INSIGHTS:pacing-bars:["catA"]}}</div>';
   const host = document.getElementById('host');
 
   let receivedMountHost;
-  mountWidget('{{ACTUALMINT:pacing-bars:', (mountHost) => {
+  mountWidget('{{INSIGHTS:pacing-bars:', (mountHost) => {
     receivedMountHost = mountHost;
   });
 
@@ -88,10 +101,10 @@ describe('findPlaceholder parses all buildPlaceholder body shapes', () => {
     const placeholder = buildPlaceholder('pacing-bars', [{ key: 'categories' }], {
       categories: ['catA', 'catB'],
     });
-    expect(placeholder).toBe('{{ACTUALMINT:pacing-bars:["catA","catB"]}}');
+    expect(placeholder).toBe('{{INSIGHTS:pacing-bars:["catA","catB"]}}');
     document.body.innerHTML = `<div id="host">${placeholder}</div>`;
 
-    const result = findPlaceholder('{{ACTUALMINT:pacing-bars:');
+    const result = findPlaceholder('{{INSIGHTS:pacing-bars:');
     expect(result).not.toBeNull();
     expect(result.config).toEqual(['catA', 'catB']);
   });
@@ -102,30 +115,30 @@ describe('findPlaceholder parses all buildPlaceholder body shapes', () => {
       [{ key: 'accountId' }, { key: 'months' }],
       { accountId: 'acc1', months: 6 },
     );
-    expect(placeholder).toBe('{{ACTUALMINT:month-end-net:{"accountId":"acc1","months":6}}}');
+    expect(placeholder).toBe('{{INSIGHTS:month-end-net:{"accountId":"acc1","months":6}}}');
     document.body.innerHTML = `<div id="host">${placeholder}</div>`;
 
-    const result = findPlaceholder('{{ACTUALMINT:month-end-net:');
+    const result = findPlaceholder('{{INSIGHTS:month-end-net:');
     expect(result).not.toBeNull();
     expect(result.config).toEqual({ accountId: 'acc1', months: 6 });
   });
 
   test('zero-field (empty object) body', () => {
     const placeholder = buildPlaceholder('month-end-net', [], {});
-    expect(placeholder).toBe('{{ACTUALMINT:month-end-net:{}}}');
+    expect(placeholder).toBe('{{INSIGHTS:month-end-net:{}}}');
     document.body.innerHTML = `<div id="host">${placeholder}</div>`;
 
-    const result = findPlaceholder('{{ACTUALMINT:month-end-net:');
+    const result = findPlaceholder('{{INSIGHTS:month-end-net:');
     expect(result).not.toBeNull();
     expect(result.config).toEqual({});
   });
 });
 
 test('a later DOM mutation does not cause the same placeholder to be re-mounted', async () => {
-  document.body.innerHTML = '<div id="host">{{ACTUALMINT:pacing-bars:["catA"]}}</div>';
+  document.body.innerHTML = '<div id="host">{{INSIGHTS:pacing-bars:["catA"]}}</div>';
 
   let calls = 0;
-  mountWidget('{{ACTUALMINT:pacing-bars:', () => {
+  mountWidget('{{INSIGHTS:pacing-bars:', () => {
     calls += 1;
   });
   expect(calls).toBe(1);

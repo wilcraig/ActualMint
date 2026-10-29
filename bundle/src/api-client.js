@@ -1,11 +1,11 @@
-// Shared authenticated-fetch helper for actualmint-bundle widgets.
+// Shared authenticated-fetch helper for insights-bundle widgets.
 //
-// actualmint-bundle runs inside Actual Budget's own web page and shares
+// insights-bundle runs inside Actual Budget's own web page and shares
 // Actual's own browser storage. Actual's web client stores its session
 // token in IndexedDB (not localStorage): database `actual`, object store
 // `asyncStorage`, key `'user-token'` (confirmed against the deployed
 // @actual-app/core version's `platform/server/indexeddb` and
-// `platform/server/asyncStorage` modules). actualmint-api's token
+// `platform/server/asyncStorage` modules). insights-api's token
 // validation middleware (see Task 1/2) expects that same token on the
 // `X-ACTUAL-TOKEN` header of every `/api/*` request.
 //

@@ -98,7 +98,7 @@
       const windowEndStr = formatDate(windowEnd);
       items = merged.filter((item) => item.date <= windowEndStr);
     } catch {
-      errorMessage = 'Subscription renewal radar unavailable: could not reach actualmint-api.';
+      errorMessage = 'Subscription renewal radar unavailable: could not reach insights-api.';
     }
   }
 

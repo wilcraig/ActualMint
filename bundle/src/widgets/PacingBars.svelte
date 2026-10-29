@@ -93,7 +93,7 @@
         ),
       }));
     } catch (err) {
-      errorMessage = 'Pacing data unavailable: could not reach actualmint-api.';
+      errorMessage = 'Pacing data unavailable: could not reach insights-api.';
     }
   }
 

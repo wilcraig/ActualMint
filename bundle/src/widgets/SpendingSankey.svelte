@@ -39,7 +39,7 @@
       }
       flow = await response.json();
     } catch {
-      errorMessage = 'Sankey unavailable: could not reach actualmint-api.';
+      errorMessage = 'Sankey unavailable: could not reach insights-api.';
     }
   }
 

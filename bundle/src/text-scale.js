@@ -1,6 +1,6 @@
 // Global text-size control — lets each browser/device independently bump up
 // the size of the *entire* page (Actual's own native budget/report UI, not
-// just ActualMint's own widgets), since a phone-sized default is too small
+// just Actual Insights' own widgets), since a phone-sized default is too small
 // to read.
 //
 // Overriding `html`/`body` font-size does NOT work here, even though
@@ -18,7 +18,10 @@
 // Persisted per-browser in localStorage (not synced through Actual's own
 // data), so a phone and a desktop can each keep their own preferred size.
 
-export const STORAGE_KEY = 'actualmint:textScalePx';
+export const STORAGE_KEY = 'insights:textScalePx';
+// Saved under the project's original name; still read so an existing
+// choice survives the rename.
+export const LEGACY_STORAGE_KEY = 'actualmint:textScalePx';
 
 // Actual's own unmodified root size is 13px -- "Normal" matches that
 // exactly, so a user who never touches this control sees no change at all.
@@ -39,7 +42,7 @@ const STYLE_ELEMENT_ID = 'actualmint-text-scale';
 // value break the page.
 export function loadSavedScale(storage) {
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(STORAGE_KEY) ?? storage.getItem(LEGACY_STORAGE_KEY);
     const px = Number(raw);
     if (Number.isFinite(px) && px > 0) return px;
   } catch {

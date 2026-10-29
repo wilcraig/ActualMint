@@ -1,7 +1,7 @@
 {
-  "name": "actualmint-proxy",
+  "name": "actual-insights-proxy",
   "version": "0.1.0",
-  "description": "Reverse proxy in front of abt that injects the ActualMint bundle tags and serves the bundle.",
+  "description": "Reverse proxy in front of abt that injects the Actual Insights bundle tags and serves the bundle.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

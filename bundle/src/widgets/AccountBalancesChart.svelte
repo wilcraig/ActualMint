@@ -33,7 +33,7 @@
 
   // Reads this account's color from the same categorical chart palette
   // (`--palette-chartQual1..9`) the pacing-bars drill-down donut uses --
-  // Actual defines these natively, and the Mint-style theme recolors them,
+  // Actual defines these natively, and the Fresh theme recolors them,
   // so this widget now follows whichever theme is active instead of a
   // fixed palette of its own that never changed with it.
   const CHART_QUAL_COUNT = 9;
@@ -92,7 +92,7 @@
       data = body;
     } catch (err) {
       if (seq !== loadSeq) return;
-      errorMessage = 'Account balances unavailable: could not reach actualmint-api.';
+      errorMessage = 'Account balances unavailable: could not reach insights-api.';
     }
   }
 

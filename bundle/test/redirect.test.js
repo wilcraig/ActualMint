@@ -22,7 +22,7 @@ test('redirects from root once, sets the flag', () => {
   maybeRedirectToReports(location, storage);
 
   expect(location.href).toBe('/reports');
-  expect(storage.getItem('actualmint:redirected')).toBeTruthy();
+  expect(storage.getItem('insights:redirected')).toBeTruthy();
 });
 
 test('redirects from the Budget page too', () => {
@@ -32,13 +32,13 @@ test('redirects from the Budget page too', () => {
   maybeRedirectToReports(location, storage);
 
   expect(location.href).toBe('/reports');
-  expect(storage.getItem('actualmint:redirected')).toBeTruthy();
+  expect(storage.getItem('insights:redirected')).toBeTruthy();
 });
 
 test('does not redirect a second time in the same tab', () => {
   const location = { pathname: '/', href: '' };
   const storage = fakeStorage();
-  storage.setItem('actualmint:redirected', '1');
+  storage.setItem('insights:redirected', '1');
 
   maybeRedirectToReports(location, storage);
 

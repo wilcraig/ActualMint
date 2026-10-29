@@ -70,7 +70,7 @@ test('spending-heatmap mount callback accepts both a bare range string (builder 
   await import('../src/index.js');
 
   const heatmapCall = mountWidget.mock.calls.find(
-    ([prefix]) => prefix === '{{ACTUALMINT:spending-heatmap:',
+    ([prefix]) => prefix === '{{INSIGHTS:spending-heatmap:',
   );
   const [, callback] = heatmapCall;
 

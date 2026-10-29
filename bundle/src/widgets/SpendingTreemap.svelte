@@ -72,7 +72,7 @@
       slices = currentNav.level === 'groups' ? data.slices.filter((s) => !TRANSFER_GROUP.test(s.label.trim())) : data.slices;
     } catch {
       if (seq !== loadSeq) return;
-      errorMessage = 'Treemap unavailable: could not reach actualmint-api.';
+      errorMessage = 'Treemap unavailable: could not reach insights-api.';
     }
   }
 

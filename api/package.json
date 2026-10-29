@@ -1,5 +1,5 @@
 {
-  "name": "actualmint-api",
+  "name": "actual-insights-api",
   "version": "0.1.0",
   "description": "Long-running read-only API over a single Actual Budget client connection.",
   "main": "src/server.js",

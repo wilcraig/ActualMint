@@ -18,7 +18,7 @@
 
       data = await response.json();
     } catch (err) {
-      errorMessage = 'Unlinked transfers unavailable: could not reach actualmint-api.';
+      errorMessage = 'Unlinked transfers unavailable: could not reach insights-api.';
     }
   }
 

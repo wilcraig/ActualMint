@@ -67,7 +67,7 @@ app.get('/health', (req, res) => {
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3011;
   app.listen(port, () => {
-    console.log(`actualmint-api listening on :${port}`);
+    console.log(`insights-api listening on :${port}`);
   });
 }
 

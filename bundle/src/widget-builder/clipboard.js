@@ -2,7 +2,7 @@
 // document.execCommand('copy') mechanism when the async Clipboard API is
 // unavailable - which it is on any plain-HTTP deployment, since
 // navigator.clipboard.writeText requires a secure context (HTTPS or
-// localhost) and ActualMint is typically self-hosted over plain HTTP on a
+// localhost) and Actual Insights is typically self-hosted over plain HTTP on a
 // LAN.
 
 /**

@@ -136,5 +136,5 @@ test('renders the inline error treatment when fetch throws', async () => {
   await Promise.resolve();
   await Promise.resolve();
 
-  expect(target.textContent).toContain('could not reach actualmint-api');
+  expect(target.textContent).toContain('could not reach insights-api');
 });

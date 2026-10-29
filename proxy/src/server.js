@@ -7,10 +7,11 @@ const zlib = require('zlib');
 const { injectTags } = require('./inject');
 
 const ABT_ORIGIN = process.env.ABT_ORIGIN || 'http://abt:3005';
-const ACTUALMINT_API_ORIGIN = process.env.ACTUALMINT_API_ORIGIN || 'http://actualmint-api:3011';
+// The ACTUALMINT_* names are from before the rename and are still read.
+const INSIGHTS_API_ORIGIN = process.env.INSIGHTS_API_ORIGIN || process.env.ACTUALMINT_API_ORIGIN || 'http://insights-api:3011';
 const PORT = Number(process.env.PORT || 3010);
-const ACTUALMINT_BUNDLE_PATH = process.env.ACTUALMINT_BUNDLE_PATH || '/actualmint';
-// Filesystem directory served under ACTUALMINT_BUNDLE_PATH. Volume-mounted at deploy time.
+const INSIGHTS_BUNDLE_PATH = process.env.INSIGHTS_BUNDLE_PATH || process.env.ACTUALMINT_BUNDLE_PATH || '/insights';
+// Filesystem directory served under INSIGHTS_BUNDLE_PATH. Volume-mounted at deploy time.
 const STATIC_DIR = path.resolve(process.env.STATIC_DIR || './static');
 const API_PATH_PREFIX = '/api/';
 
@@ -37,8 +38,8 @@ function buildInjectedTags(staticDir) {
   const jsVersion = cacheBustQuery(path.join(staticDir, 'bundle.js'));
   const cssVersion = cacheBustQuery(path.join(staticDir, 'bundle.css'));
   return (
-    `<script src="${ACTUALMINT_BUNDLE_PATH}/bundle.js${jsVersion}"></script>` +
-    `<link rel="stylesheet" href="${ACTUALMINT_BUNDLE_PATH}/bundle.css${cssVersion}">`
+    `<script src="${INSIGHTS_BUNDLE_PATH}/bundle.js${jsVersion}"></script>` +
+    `<link rel="stylesheet" href="${INSIGHTS_BUNDLE_PATH}/bundle.css${cssVersion}">`
   );
 }
 
@@ -105,7 +106,7 @@ function proxyTo(origin, rewriteHtml, req, res, staticDir) {
       decodeBody(raw, upstreamRes.headers['content-encoding'], (decodeErr, decoded) => {
         if (decodeErr) {
           res.statusCode = 502;
-          res.end(`actualmint-proxy: ${decodeErr.message}`);
+          res.end(`insights-proxy: ${decodeErr.message}`);
           return;
         }
         const body = Buffer.from(injectTags(decoded.toString('utf8'), buildInjectedTags(staticDir)), 'utf8');
@@ -122,7 +123,7 @@ function proxyTo(origin, rewriteHtml, req, res, staticDir) {
   upstreamReq.on('error', (err) => {
     if (res.headersSent) return res.destroy();
     res.statusCode = 502;
-    res.end(`actualmint-proxy: upstream ${origin} unreachable (${err.code || err.message})`);
+    res.end(`insights-proxy: upstream ${origin} unreachable (${err.code || err.message})`);
   });
 
   req.pipe(upstreamReq);
@@ -161,7 +162,7 @@ self.addEventListener('activate', (event) => {
 });
 `;
 
-function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN, staticDir = STATIC_DIR } = {}) {
+function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = INSIGHTS_API_ORIGIN, staticDir = STATIC_DIR } = {}) {
   const app = express();
 
   app.get('/sw.js', (req, res) => {
@@ -169,10 +170,10 @@ function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN, 
     res.send(SERVICE_WORKER_KILL_SWITCH);
   });
 
-  app.use(ACTUALMINT_BUNDLE_PATH, express.static(staticDir));
+  app.use(INSIGHTS_BUNDLE_PATH, express.static(staticDir));
   // Anything under the bundle prefix that static did not serve is a 404, not a proxied abt request.
-  app.use(ACTUALMINT_BUNDLE_PATH, (req, res) => res.status(404).end());
-  // /api/* goes to actualmint-api as a plain passthrough (JSON, no HTML rewriting).
+  app.use(INSIGHTS_BUNDLE_PATH, (req, res) => res.status(404).end());
+  // /api/* goes to insights-api as a plain passthrough (JSON, no HTML rewriting).
   app.use((req, res, next) => {
     if (req.originalUrl.startsWith(API_PATH_PREFIX)) return proxyTo(apiOrigin, false, req, res, staticDir);
     return next();
@@ -186,7 +187,7 @@ function createApp({ abtOrigin = ABT_ORIGIN, apiOrigin = ACTUALMINT_API_ORIGIN, 
 if (require.main === module) {
   createApp().listen(PORT, () => {
     console.log(
-      `actualmint-proxy listening on :${PORT} -> abt ${ABT_ORIGIN}, api ${ACTUALMINT_API_ORIGIN} (/api/*), static ${STATIC_DIR} at ${ACTUALMINT_BUNDLE_PATH}`
+      `insights-proxy listening on :${PORT} -> abt ${ABT_ORIGIN}, api ${INSIGHTS_API_ORIGIN} (/api/*), static ${STATIC_DIR} at ${INSIGHTS_BUNDLE_PATH}`
     );
   });
 }

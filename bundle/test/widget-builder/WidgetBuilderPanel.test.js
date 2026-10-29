@@ -180,7 +180,7 @@ test('Generate selects the textarea contents once a selection is made', async ()
   await flush();
 
   expect(selectSpy).toHaveBeenCalled();
-  expect(textarea.value).toBe('{{ACTUALMINT:pacing-bars:["c1"]}}');
+  expect(textarea.value).toBe('{{INSIGHTS:pacing-bars:["c1"]}}');
 });
 
 test('a zero-field widget (e.g. month-end-net) is immediately generatable, no picker fetch', async () => {
@@ -209,7 +209,7 @@ test('a zero-field widget (e.g. month-end-net) is immediately generatable, no pi
   generateButton.click();
   await flush();
 
-  expect(document.querySelector('.actualmint-wb-textarea').value).toBe('{{ACTUALMINT:month-end-net:{}}}');
+  expect(document.querySelector('.actualmint-wb-textarea').value).toBe('{{INSIGHTS:month-end-net:{}}}');
 });
 
 test('a group-multiselect field fetches from the groups source and lets multiple groups be toggled', async () => {
@@ -246,7 +246,7 @@ test('a group-multiselect field fetches from the groups source and lets multiple
   generateButton.click();
   await flush();
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
-    '{{ACTUALMINT:test-group-widget:["g1","g2"]}}',
+    '{{INSIGHTS:test-group-widget:["g1","g2"]}}',
   );
 });
 
@@ -269,7 +269,7 @@ test('an optional group-multiselect field (e.g. savings-rate-gauge\'s investment
   generateButton.click();
   await flush();
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
-    '{{ACTUALMINT:savings-rate-gauge:[]}}',
+    '{{INSIGHTS:savings-rate-gauge:[]}}',
   );
 });
 
@@ -300,7 +300,7 @@ test('a select-type field (account-balances\' labelContent) defaults to its firs
   generateButton.click();
   await flush();
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
-    '{{ACTUALMINT:account-balances:{"accountIds":["acc1"],"labelContent":"both"}}}',
+    '{{INSIGHTS:account-balances:{"accountIds":["acc1"],"labelContent":"both"}}}',
   );
 
   labelSelect.value = 'amount';
@@ -309,6 +309,6 @@ test('a select-type field (account-balances\' labelContent) defaults to its firs
   generateButton.click();
   await flush();
   expect(document.querySelector('.actualmint-wb-textarea').value).toBe(
-    '{{ACTUALMINT:account-balances:{"accountIds":["acc1"],"labelContent":"amount"}}}',
+    '{{INSIGHTS:account-balances:{"accountIds":["acc1"],"labelContent":"amount"}}}',
   );
 });

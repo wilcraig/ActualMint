@@ -31,7 +31,7 @@
 
       data = await response.json();
     } catch (err) {
-      errorMessage = 'Month-end projection unavailable: could not reach actualmint-api.';
+      errorMessage = 'Month-end projection unavailable: could not reach insights-api.';
     }
   }
 

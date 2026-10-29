@@ -8,7 +8,7 @@ import { findAddWidgetButton } from './toolbar-anchor';
 // with its position computed from the button's bounding rect.
 //
 // `position: fixed` + JS-computed pixel coordinates was tried first and
-// confirmed broken live: ActualMint's own CSS `zoom` (the text-size
+// confirmed broken live: Actual Insights' own CSS `zoom` (the text-size
 // control, see text-scale.js) scales `getBoundingClientRect()` results
 // one way but re-applies that same zoom a second time to a `position:
 // fixed` descendant's own `top`/`left`, so at any zoom other than 1x

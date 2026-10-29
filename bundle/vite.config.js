@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// `actualmint-proxy` (Task 1) injects a plain, non-module <script> tag
+// `insights-proxy` (Task 1) injects a plain, non-module <script> tag
 // pointing at a fixed path, so the build output must be a single
 // self-executing IIFE named `bundle.js` (plus whatever CSS it pulls in,
 // as `bundle.css`) rather than Vite's default hashed, ESM-chunked output.

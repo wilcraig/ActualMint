@@ -60,7 +60,7 @@
       data = body;
     } catch {
       if (seq !== loadSeq) return;
-      errorMessage = 'Spending calendar unavailable: could not reach actualmint-api.';
+      errorMessage = 'Spending calendar unavailable: could not reach insights-api.';
     }
   }
 

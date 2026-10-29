@@ -53,7 +53,7 @@
       }
     } catch (err) {
       if (seq !== loadSeq) return;
-      errorMessage = 'Spending breakdown unavailable: could not reach actualmint-api.';
+      errorMessage = 'Spending breakdown unavailable: could not reach insights-api.';
     }
   }
 

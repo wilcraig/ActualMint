@@ -31,7 +31,7 @@ export function mountSettingsSection(doc, win, SettingsSectionComponent) {
     // Match the native settings card's chrome (border/background/
     // spacing/width) directly from the live anchor rather than guessing
     // at which CSS custom property drives it, so this still looks right
-    // under Light, Dark, Midnight, and the Mint-style recolor alike.
+    // under Light, Dark, Midnight, and the Fresh theme alike.
     // Longhand properties only, set one at a time -- aggregate shorthands
     // (`padding`, `border`) are unreliable to both read AND write as a
     // single `cssText` string across computed-style implementations
@@ -70,7 +70,7 @@ export function mountSettingsSection(doc, win, SettingsSectionComponent) {
     // carryover on a category, then go add a goal for it" without a hard
     // page reload. Dispatched every time we actually (re)attach next to a
     // found anchor, so children can listen and refresh their own data.
-    doc.dispatchEvent(new win.CustomEvent('actualmint:settings-attached'));
+    doc.dispatchEvent(new win.CustomEvent('insights:settings-attached'));
   }
 
   function stopObserving() {
