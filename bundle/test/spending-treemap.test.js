@@ -89,6 +89,23 @@ test('renders one rectangle per group, sized proportionally to amountCents', asy
   expect(area1).toBeGreaterThan(area2);
 });
 
+test('leaves out a "Transfers" group, since it moves money between accounts rather than spending it', async () => {
+  fetchApi.mockImplementation((url) =>
+    Promise.resolve(
+      groupsResponse([
+        { id: 'group1', label: 'Home', amountCents: 50000 },
+        { id: 'xfer', label: 'Transfers', amountCents: 900000 },
+      ]),
+    ),
+  );
+
+  const target = mountWidget();
+  await flush();
+
+  expect(target.querySelector('[data-cell-id="xfer"]')).toBeNull();
+  expect(target.querySelectorAll('.treemap-cell-rect').length).toBe(1);
+});
+
 test("clicking a group fetches its categories and replaces the treemap contents with just those categories' rectangles", async () => {
   mockTwoGroupsWithCategories();
 

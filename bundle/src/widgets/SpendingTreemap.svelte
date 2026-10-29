@@ -48,6 +48,8 @@
   // a slower in-flight request shouldn't clobber a newer one's result.
   let loadSeq = 0;
 
+  const TRANSFER_GROUP = /^transfers?$/i;
+
   async function load(currentNav) {
     const seq = ++loadSeq;
     errorMessage = null;
@@ -65,7 +67,9 @@
 
       const data = await response.json();
       if (seq !== loadSeq) return;
-      slices = data.slices;
+      // A user-made "Transfers" group holds moves between accounts, not
+      // spending -- same rule /api/cash-flow applies for the Sankey.
+      slices = currentNav.level === 'groups' ? data.slices.filter((s) => !TRANSFER_GROUP.test(s.label.trim())) : data.slices;
     } catch {
       if (seq !== loadSeq) return;
       errorMessage = 'Treemap unavailable: could not reach actualmint-api.';
