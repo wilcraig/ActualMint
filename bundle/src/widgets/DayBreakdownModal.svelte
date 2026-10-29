@@ -19,7 +19,7 @@
       <h2 class="day-modal-title">{title}</h2>
       <button type="button" class="day-modal-close" aria-label="Close" onclick={() => onClose()}>×</button>
     </div>
-    <SpendingBreakdownDonut {date} hideTransfers={true} showLegend={true} />
+    <SpendingBreakdownDonut {date} showLegend={true} />
   </div>
 </div>
 

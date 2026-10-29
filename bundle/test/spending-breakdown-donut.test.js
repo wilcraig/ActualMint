@@ -20,7 +20,7 @@ beforeEach(() => {
   fetchApi.mockReset();
 });
 
-test('with date and hideTransfers, fetches that single day and drops a "Transfers" group', async () => {
+test('with a date, fetches that single day; a "Transfers" group is always dropped', async () => {
   fetchApi.mockResolvedValue(
     jsonResponse({
       total: 10500,
@@ -31,7 +31,7 @@ test('with date and hideTransfers, fetches that single day and drops a "Transfer
     }),
   );
 
-  const target = mountWidget({ date: '2026-10-15', hideTransfers: true });
+  const target = mountWidget({ date: '2026-10-15' });
   for (let i = 0; i < 3; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 
   const params = new URLSearchParams(fetchApi.mock.calls[0][0].split('?')[1]);

@@ -9,8 +9,10 @@
   // categoryIds -- a non-empty list curates the donut down to just those
   // groups (see breakdown-nav.js's "standalone donut widget" entry point).
   // `date` (YYYY-MM-DD) scopes every level to that one day instead of the
-  // current month; `hideTransfers` drops a user-made "Transfers" group.
-  let { groupIds = [], date = null, hideTransfers = false, showLegend = false } = $props();
+  // current month. A user-made "Transfers" group is always left out: it
+  // holds moves between accounts, not spending (same rule as the treemap,
+  // calendar, and Sankey).
+  let { groupIds = [], date = null, showLegend = false } = $props();
   const TRANSFER_GROUP = /^transfers?$/i;
 
   // groupIds is only ever read at mount (not reactive to later prop
@@ -43,7 +45,7 @@
 
       const data = await response.json();
       if (seq !== loadSeq) return; // a newer navigation started while this response body was parsing
-      if (hideTransfers && currentNav.level === 'groups') {
+      if (currentNav.level === 'groups') {
         const slices = data.slices.filter((s) => !TRANSFER_GROUP.test(s.label.trim()));
         breakdown = { ...data, slices, total: slices.reduce((sum, s) => sum + s.amountCents, 0) };
       } else {
