@@ -13,6 +13,7 @@ const { buildWarningMessage, buildTestMessage } = require('./message');
 // with retries, then record state and history. Mirrors summary/deliver.js.
 
 const COMPUTE_FAILED = 'could not compute the forecast';
+const STATE_UNREADABLE = 'could not read forecast state';
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -97,23 +98,32 @@ async function runCheck({
       // Accounts in errors are left out, so decideWarnings keeps their state.
       const breaches = {};
       for (const r of forecast.results) breaches[r.accountId] = r.breach ? { date: r.breach.date, shortfallCents: r.breach.shortfallCents } : null;
-      const state = await readState(dataDir);
-      const { toSend, nextState } = decideWarnings({ breaches, state, now, today: forecast.today });
-
-      if (toSend.length > 0) {
-        const warnings = forecast.results.filter((r) => toSend.includes(r.accountId));
-        const message = buildWarningMessage({ warnings, windowDays: forecast.windowDays, generatedAt: forecast.generatedAt });
-        const result = await sendWithRetries(settings.channelId, message, { notifyImpl, sleep, dataDir, retry: true });
-        if (result.ok) {
-          sent = true;
-          warned = toSend;
-          await writeState(nextState, dataDir);
+      // Unreadable state skips sending (we can't tell what was already said)
+      // but still reaches the failure alert below.
+      let state;
+      try {
+        state = await readState(dataDir);
+      } catch (err) {
+        console.error('forecast: could not read state:', err && err.code ? err.code : (err && err.name) || 'unexpected error');
+        problems.push(STATE_UNREADABLE);
+      }
+      if (state) {
+        const { toSend, nextState } = decideWarnings({ breaches, state, now, today: forecast.today });
+        if (toSend.length > 0) {
+          const warnings = forecast.results.filter((r) => toSend.includes(r.accountId));
+          const message = buildWarningMessage({ warnings, windowDays: forecast.windowDays, generatedAt: forecast.generatedAt });
+          const result = await sendWithRetries(settings.channelId, message, { notifyImpl, sleep, dataDir, retry: true });
+          if (result.ok) {
+            sent = true;
+            warned = toSend;
+            await writeState(nextState, dataDir);
+          } else {
+            sendError = result.error || 'unexpected error';
+            problems.unshift(sendError);
+          }
         } else {
-          sendError = result.error || 'unexpected error';
-          problems.unshift(sendError);
+          await writeState(nextState, dataDir);
         }
-      } else {
-        await writeState(nextState, dataDir);
       }
     }
 

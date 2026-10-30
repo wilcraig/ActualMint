@@ -16,6 +16,9 @@ async function readFile(dataDir) {
   try {
     const raw = await fs.readFile(path.join(dataDir, FILE_NAME), 'utf8');
     const parsed = JSON.parse(raw);
+    // Valid JSON that is not an object (e.g. `null`) holds nothing: treat it
+    // like a missing file. Corrupt JSON still throws.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { history: [], state: {} };
     return {
       history: Array.isArray(parsed.history) ? parsed.history : [],
       state: parsed.state && typeof parsed.state === 'object' && !Array.isArray(parsed.state) ? parsed.state : {},

@@ -56,3 +56,16 @@ test('concurrent writeState and appendHistory keep both', async () => {
   expect(await readState(dir)).toEqual(state);
   expect(await readHistory(dir)).toHaveLength(1);
 });
+
+test('a file holding null or a non-object reads as empty', async () => {
+  for (const raw of ['null', '[]', '42']) {
+    await fs.writeFile(path.join(dir, 'forecast-history.json'), raw);
+    expect(await readState(dir)).toEqual({});
+    expect(await readHistory(dir)).toEqual([]);
+  }
+});
+
+test('corrupt JSON still throws', async () => {
+  await fs.writeFile(path.join(dir, 'forecast-history.json'), '{not json');
+  await expect(readState(dir)).rejects.toThrow(SyntaxError);
+});

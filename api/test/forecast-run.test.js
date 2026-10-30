@@ -330,3 +330,17 @@ test('sendTest success, and no channel reports channel not found', async () => {
   expect(await sendTest({ dataDir: noChannel, notifyImpl })).toEqual({ ok: false, error: 'channel not found' });
   expect(notifyImpl).not.toHaveBeenCalled();
 });
+
+test('a corrupt forecast-history.json still sends the failure alert and nothing else, without throwing', async () => {
+  const dataDir = await setup();
+  await fs.writeFile(path.join(dataDir, 'forecast-history.json'), '{not json');
+  const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const f = fakes({ forecasts: [forecast({ results: [result('a1', 'Checking', SHORT)] })] });
+  const out = await run(dataDir, f);
+  errorSpy.mockRestore();
+  expect(out.ok).toBe(false);
+  expect(out.sent).toBe(false);
+  expect(mainCalls(f)).toHaveLength(0);
+  expect(alertCalls(f)).toHaveLength(1);
+  expect(alertCalls(f)[0][1].text).toContain('could not read forecast state');
+});
