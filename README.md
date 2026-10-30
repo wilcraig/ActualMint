@@ -19,8 +19,9 @@ Actual Insights adds a layer of charts and budgeting insights on top of a self-h
 - **Budget tools:** budget-pacing widgets, a projected month-end net,
   paycheck alerts, and a bills timeline.
 - **An Insights page** in Actual's sidebar: an optional "Fresh" color theme,
-  a global text-size control, and savings goals, with budget summaries and
-  notification channels on the way.
+  a global text-size control, savings goals, budget summaries, a cash-flow
+  forecast that warns before an account runs low, and notification channels
+  to send them through.
 
 All of it is injected into Actual's own Reports page and native UI, with zero
 changes to Actual itself.
@@ -210,13 +211,15 @@ treemap always agree with each other:
 An **Insights** entry in Actual's sidebar, just below Schedules, opens Actual
 Insights' own page. It works with Actual's own sidebar and with Actual Budget
 Tweaks' "Live sidebar", in both its Standard and Split layouts. The page has
-three tabs:
+four tabs:
 
 - **General:** text size, the Fresh theme, and savings goals.
 - **Summaries:** scheduled and on-demand budget summaries (see
   [Budget summaries](#budget-summaries)).
 - **Channels:** the places notifications can go (see
   [Notification channels](#notification-channels)).
+- **Forecast:** a daily check that warns before a watched account's balance
+  runs low (see [Cash-flow forecast](#cash-flow-forecast)).
 
 The page lives in the URL hash (`#actual-insights`, or
 `#actual-insights/summaries`) on whichever Actual page you were on, so a
@@ -391,6 +394,109 @@ Neither holds secrets.
 A new section is one file in `api/src/summary/sections/`, one line in its
 `index.js`, and its defaults in `api/src/summary/settings-store.js`.
 
+## Cash-flow forecast
+
+The **Forecast** tab projects a checking account's balance forward a couple
+of weeks and warns you, through any channel, before it would drop below a
+level you set. It answers one question ("will this account cover what's
+coming out?") and states what it found; it doesn't suggest what to do.
+
+### What it counts
+
+For each account you switch on, starting from today's balance, day by day
+through the look-ahead window (default 15 days, 1 to 30):
+
+| Counted | How |
+| --- | --- |
+| Scheduled bills and income | Every occurrence of Actual's schedules on that account in the window, at the schedule's amount. An occurrence that already posted is skipped; an overdue one that hasn't posted is counted today. |
+| Credit-card payments | Whatever amount the payment schedule holds (in our setup, what cc-helper wrote there). The forecast never estimates a card payment itself, so past the window cc-helper has filled in (15 days) later card payments may be missing; the tab says so when the window is longer than 15 days. |
+| Everyday spending | A daily allowance: the **median** weekly spending over the last 8 complete weeks, divided by 7. The median keeps one big purchase from inflating it. It leaves out income, transfers, starting balances and adjustments, and payees that already have a schedule on the account (so a bill isn't counted twice). With under 4 weeks of history the allowance is zero, and the forecast says so. |
+
+Only open, on-budget accounts can be switched on. Each has its own
+**warning level** (default $0): the forecast flags the first day the
+projected balance goes below it, how far below (the shortfall), the largest
+outflow that day, and the lowest balance in the window.
+
+### Check now and the chart
+
+**Check now** computes the forecast from your saved settings and shows it
+without sending anything or touching the send history. For each account it
+shows the first shortfall (or "No shortfall in the next N days") and the
+lowest balance, plus a chart: the projected balance, a dashed line at the
+warning level, the part below it shaded red, and the scheduled items
+labelled on their dates. With more than one account switched on, a picker
+chooses which account the chart shows.
+
+### The daily check
+
+Turn on **Check every day**, pick a channel and a time, and the API runs the
+check once a day in its `TZ`.
+
+- **Only new or changed shortfalls are sent.** A shortfall that persists
+  doesn't re-send every day. It sends again only when its first date moves,
+  or when the shortfall changes by more than the greater of $25 or 5% of the
+  shortfall in the last warning sent (compared with the last one *sent*, so
+  slow drift adds up). When an account recovers nothing is sent, and its next
+  shortfall counts as new.
+- **One message per day at most,** covering every account that is new or
+  changed. There is no all-clear message.
+- **Missed checks:** like summaries, a check missed while the API was down
+  runs once on startup when the miss is under 12 hours old.
+- **Failures:** a failed send is retried twice (after 2 and then 6 minutes).
+  If it still fails, or an account can't be computed, one alert goes to the
+  failure channel chosen on the **Summaries** tab (**Alert me about failures
+  on**). The warning state only advances for a warning that was actually
+  sent, so a failed one is tried again the next day.
+- **Send test message** sends one short test message to the saved channel
+  (no retries) and shows the result.
+- **Send history** lists the last 50 checks: when, the outcome, and whether
+  it was the schedule or a catch-up.
+
+### Warning payload
+
+Webhook and Home Assistant channels receive the message's `data`. As with
+summaries, amounts are integer cents, dates are `YYYY-MM-DD`, and keys are
+only ever added. `item` is the largest outflow on the first day below the
+level (`null` when everyday spending alone crosses it), with its amount
+signed the way Actual stores it (outflows negative).
+
+```json
+{
+  "schemaVersion": 1,
+  "event": "cash-flow-warning",
+  "generatedAt": "2026-10-30T13:00:00.000Z",
+  "windowDays": 15,
+  "accounts": [
+    {
+      "accountId": "…",
+      "accountName": "Checking",
+      "warningLevelCents": 50000,
+      "firstDate": "2026-11-13",
+      "shortfallCents": 82000,
+      "lowestCents": -38500,
+      "lowestDate": "2026-11-14",
+      "item": { "name": "Visa payment", "amountCents": -240000 },
+      "allowancePerDayCents": 6500
+    }
+  ]
+}
+```
+
+The test message sends `{ "schemaVersion": 1, "event": "cash-flow-test" }`
+and a failure alert `{ "schemaVersion": 1, "event":
+"cash-flow-check-failed", "error": "…" }`.
+
+### Where it's stored
+
+`forecast-settings.json` (the daily check, channel, time, window, and each
+account's switch and warning level) and `forecast-history.json` (the check
+history and what the last warning said for each account) live under
+`INSIGHTS_DATA_DIR`, next to the summary files. Neither holds secrets.
+
+The tab talks to `/api/forecast/settings` (GET/PUT), `/api/forecast/check`
+(POST, compute only), `/api/forecast/test` (POST) and
+`/api/forecast/history` (GET).
+
 ## Savings goals
 
 The two goal-based charts (the thermometers and the balance-history goal
@@ -492,9 +598,9 @@ browser --(HTTPS)--> insights-proxy --> abt/actual (Actual's own server)
 | `ACTUAL_SERVER_PASSWORD` | Actual's server password |
 | `ACTUAL_SYNC_ID` | The budget's sync *group* id (Settings → Advanced Settings → Sync ID in Actual) |
 | `ACTUAL_E2E_PASSWORD` | Only needed if the budget has end-to-end encryption enabled |
-| `INSIGHTS_DATA_DIR` | Where `goals.json`, `channels.json`, `summary-settings.json` and `summary-history.json` are stored (default `/data`). Mount a writable volume here so they survive container rebuilds; `channels.json` holds secrets, so keep the volume private |
+| `INSIGHTS_DATA_DIR` | Where `goals.json`, `channels.json`, `summary-settings.json`, `summary-history.json`, `forecast-settings.json` and `forecast-history.json` are stored (default `/data`). Mount a writable volume here so they survive container rebuilds; `channels.json` holds secrets, so keep the volume private |
 | `PORT` | `3011` by default |
-| `TZ` | Set this to your own timezone (required): several widgets do day-of-month math, and budget summary schedules fire in this zone |
+| `TZ` | Set this to your own timezone (required): several widgets do day-of-month math, and budget summary schedules and the daily cash-flow check fire in this zone |
 
 ## Development
 
