@@ -18,6 +18,7 @@ const savingsRateRouter = require('./routes/savings-rate');
 const cashFlowRouter = require('./routes/cash-flow');
 const channelsRouter = require('./routes/channels');
 const summariesRouter = require('./routes/summaries');
+const forecastRouter = require('./routes/forecast');
 const { startScheduler } = require('./summary/scheduler');
 const { startForecastScheduler } = require('./forecast/scheduler');
 
@@ -61,6 +62,7 @@ app.use('/api/savings-rate', savingsRateRouter);
 app.use('/api/cash-flow', cashFlowRouter);
 app.use('/api/channels', channelsRouter);
 app.use('/api/summaries', summariesRouter);
+app.use('/api/forecast', forecastRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
