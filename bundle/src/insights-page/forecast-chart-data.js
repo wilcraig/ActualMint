@@ -22,6 +22,18 @@ export function money(cents) {
   });
 }
 
+// Whole dollars when the amount is whole, cents otherwise, so a $19.99
+// level doesn't read "$20" and a 50-cent shortfall doesn't read "$0".
+export function exactMoney(cents) {
+  const digits = cents % 100 === 0 ? 0 : 2;
+  return (cents / 100).toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
 export function formatDay(date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
@@ -102,8 +114,8 @@ export function chartModel(result) {
   if (breach) {
     const what = breach.item ? breach.item.name : 'everyday spending';
     const date = parseDateOnly(breach.date);
-    headline = `Short by ${money(breach.shortfallCents)} on ${formatDay(date)} (${what})`;
-    markers.push({ date, label: `Short by ${money(breach.shortfallCents)}`, kind: 'breach' });
+    headline = `Short by ${exactMoney(breach.shortfallCents)} on ${formatDay(date)} (${what})`;
+    markers.push({ date, label: `Short by ${exactMoney(breach.shortfallCents)}`, kind: 'breach' });
   }
 
   let lowest = null;

@@ -155,7 +155,7 @@ test('Check now shows a warning line for a breach and No shortfall otherwise, wi
         {
           accountId: 'a1', accountName: 'Checking', warningLevelCents: 0, balanceCents: 123456, allowancePerDayCents: 1000,
           allowanceNote: null, days: [], events: [], lowest: { date: '2026-11-03', balanceCents: -4500 },
-          breach: { date: '2026-11-03', balanceCents: -4500, shortfallCents: 4500, item: { name: 'Mortgage', amountCents: 200000 } },
+          breach: { date: '2026-11-03', balanceCents: -4500, shortfallCents: 4500, item: { name: 'Mortgage', amountCents: -650000 } },
         },
         {
           accountId: 'a2', accountName: 'Savings', warningLevelCents: 0, balanceCents: 500000, allowancePerDayCents: 0,
@@ -172,7 +172,10 @@ test('Check now shows a warning line for a breach and No shortfall otherwise, wi
   const r2 = host.querySelector('.forecast-result[data-account-id="a2"]');
   expect(r1.textContent).toContain('Checking');
   expect(r1.querySelector('.result-warning').textContent).toContain('2026-11-03');
-  expect(r1.querySelector('.result-warning').textContent).toContain('Mortgage');
+  expect(r1.querySelector('.result-warning').textContent).toContain('Mortgage ($6,500.00)');
+  expect(r1.querySelector('.result-warning').textContent).not.toContain('-$6,500.00');
+  expect(r1.querySelector('.result-allowance-amount').textContent).toContain('Includes about $10.00 a day for everyday spending');
+  expect(r2.querySelector('.result-allowance-amount')).toBeNull();
   expect(r1.textContent).toContain('Lowest');
   expect(r2.textContent).toContain('No shortfall in the next 15 days');
   expect(r2.textContent).toContain('needs 4 weeks');
@@ -208,6 +211,30 @@ test('Check now draws one chart; with several accounts a picker switches it, def
   await flush();
   expect(host.querySelectorAll('.actualmint-forecast-chart svg')).toHaveLength(1);
   expect(host.querySelector('.actualmint-forecast-chart').textContent).toContain('Savings bill');
+});
+
+test('the chart picker defaults to the first account with a shortfall, again on every Check now', async () => {
+  getSettings.mockImplementation(async () => ({
+    settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 0 }, a2: { enabled: true, warningLevelCents: 0 } } }),
+    accounts: ACCOUNTS,
+    timezone: null,
+  }));
+  const short = { date: '2026-11-02', balanceCents: -100, shortfallCents: 100, item: null };
+  checkNow.mockResolvedValue({ forecast: { results: [chartResult('a1', 'Checking'), chartResult('a2', 'Savings', { breach: short })], errors: [] } });
+  const host = await mountTab();
+  await click(host.querySelector('.check-now'));
+  expect(host.querySelector('.forecast-account-picker').value).toBe('a2');
+  expect(host.querySelector('.actualmint-forecast-chart').textContent).toContain('Savings bill');
+  change(host.querySelector('.forecast-account-picker'), 'a1');
+  await flush();
+  await click(host.querySelector('.check-now'));
+  expect(host.querySelector('.forecast-account-picker').value).toBe('a2');
+});
+
+test('an account whose balance could not be read shows a dash', async () => {
+  getSettings.mockImplementation(async () => ({ settings: settings(), accounts: [{ id: 'a1', name: 'Checking', balanceCents: null }], timezone: null }));
+  const host = await mountTab();
+  expect(row(host, 'a1').querySelector('.account-balance').textContent.trim()).toBe('—');
 });
 
 test('Check now with one account draws its chart without a picker', async () => {
@@ -360,4 +387,25 @@ test('a loaded 2500 shows 25 and 1999 shows 19.99', async () => {
   const host = await mountTab();
   expect(row(host, 'a1').querySelector('.warning-level').value).toBe('25');
   expect(row(host, 'a2').querySelector('.warning-level').value).toBe('19.99');
+});
+
+test('an invalid warning level survives switching the account off and on: error shown, save blocked', async () => {
+  getSettings.mockImplementation(async () => ({
+    settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 2500 } } }),
+    accounts: ACCOUNTS,
+    timezone: null,
+  }));
+  const host = await mountTab();
+  type(row(host, 'a1').querySelector('.warning-level'), '-5');
+  await flush();
+  toggle(host, 'a1').checked = false;
+  change(toggle(host, 'a1'));
+  await flush();
+  toggle(host, 'a1').checked = true;
+  change(toggle(host, 'a1'));
+  await flush();
+  expect(row(host, 'a1').querySelector('.warning-level').value).toBe('-5');
+  expect(row(host, 'a1').querySelector('.field-error').textContent).toContain('Warning level');
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings).not.toHaveBeenCalled();
 });

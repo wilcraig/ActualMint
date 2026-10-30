@@ -104,6 +104,27 @@ test('GET settings returns defaults, only on-budget open accounts with balances,
   });
 });
 
+test('GET settings gives a null balance for an account whose balance cannot be read', async () => {
+  const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  client.getAccountBalance.mockImplementation(async (id) => {
+    if (id === 'a4') throw new Error('balance query failed');
+    return BALANCES[id];
+  });
+  try {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/forecast/settings`, { headers: AUTH_HEADERS });
+      expect(res.status).toBe(200);
+      expect((await res.json()).accounts).toEqual([
+        { id: 'a1', name: 'Checking', balanceCents: 123456 },
+        { id: 'a4', name: 'Savings', balanceCents: null },
+      ]);
+    });
+  } finally {
+    client.getAccountBalance.mockImplementation(async (id) => BALANCES[id]);
+    errorSpy.mockRestore();
+  }
+});
+
 test('PUT settings round-trips and drops account ids that are not eligible', async () => {
   const next = {
     enabled: true,

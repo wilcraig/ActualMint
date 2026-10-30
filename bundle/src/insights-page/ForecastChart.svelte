@@ -1,6 +1,6 @@
 <script>
   import { scaleTime, scaleLinear, line as d3Line, area as d3Area } from 'd3';
-  import { chartModel, money, formatDay, parseDateOnly } from './forecast-chart-data';
+  import { chartModel, money, exactMoney, formatDay, parseDateOnly } from './forecast-chart-data';
 
   // One account's forecast from Check now (an insights-api AccountResult):
   // the balance line, the warning level (dashed), the stretch below it
@@ -117,7 +117,7 @@
 
       <line class="forecast-level-line" x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={levelY} y2={levelY}
         stroke-width="1.5" stroke-dasharray="6 4" />
-      <text class="forecast-level-label" x={WIDTH - MARGIN.right} y={levelY - 4}>Warning level {money(model.levelCents)}</text>
+      <text class="forecast-level-label" x={WIDTH - MARGIN.right} y={levelY - 4}>Warning level {exactMoney(model.levelCents)}</text>
 
       <path class="forecast-balance-line" d={linePath} stroke-width="2" fill="none" />
 
@@ -133,7 +133,7 @@
     </svg>
     {#if model.lowest}
       <p class="forecast-lowest">
-        Lowest balance <strong class:forecast-lowest--below={model.lowest.balanceCents < model.levelCents}>{money(model.lowest.balanceCents)}</strong>
+        Lowest balance <strong class:forecast-lowest--below={model.lowest.balanceCents < model.levelCents}>{exactMoney(model.lowest.balanceCents)}</strong>
         on {formatDay(model.lowest.date)}
       </p>
     {/if}

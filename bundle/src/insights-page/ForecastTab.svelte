@@ -111,6 +111,9 @@
     else settings.accounts[id] = { enabled: on, warningLevelCents: 0 };
     if (levelText[id] === undefined) levelText[id] = '0';
     if (!on) delete levelErrors[id];
+    // Switching back on re-checks the text still in the field, so an
+    // invalid value can't hide behind the last valid cents.
+    else setLevel(id, levelText[id]);
   }
 
   function setLevel(id, text) {
@@ -153,7 +156,9 @@
       if (f.error) checkError = f.error;
       else {
         forecast = f;
-        chartAccountId = f.results && f.results.length > 0 ? f.results[0].accountId : null;
+        // Chart the first account that falls short, if any.
+        const results = f.results || [];
+        chartAccountId = (results.find((r) => r.breach) ?? results[0])?.accountId ?? null;
         checkedDays = savedJson ? JSON.parse(savedJson).windowDays : settings.windowDays;
       }
     } catch (err) {
@@ -223,7 +228,7 @@
           <div class="setting-row">
             <span class="setting-text">
               <span class="setting-label account-name">{account.name}</span>
-              <span class="setting-desc account-balance">{money(account.balanceCents)}</span>
+              <span class="setting-desc account-balance">{account.balanceCents == null ? '—' : money(account.balanceCents)}</span>
             </span>
             <label class="setting-toggle switch">
               <input type="checkbox" class="switch__input account-toggle" aria-label="Watch {account.name}"
@@ -328,13 +333,16 @@
             <strong class="result-name">{result.accountName}</strong>
             {#if result.breach}
               <p class="result-warning forecast-warning">
-                Drops to {money(result.breach.balanceCents)} on {result.breach.date}, {money(result.breach.shortfallCents)} below {money(result.warningLevelCents)}{result.breach.item ? `, after ${result.breach.item.name} (${money(result.breach.item.amountCents)})` : ''}.
+                Drops to {money(result.breach.balanceCents)} on {result.breach.date}, {money(result.breach.shortfallCents)} below {money(result.warningLevelCents)}{result.breach.item ? `, after ${result.breach.item.name} (${money(-result.breach.item.amountCents)})` : ''}.
               </p>
             {:else}
               <p class="result-ok forecast-note">No shortfall in the next {checkedDays} days.</p>
             {/if}
             {#if result.lowest}
               <p class="result-lowest forecast-note">Lowest: {money(result.lowest.balanceCents)} on {result.lowest.date}</p>
+            {/if}
+            {#if result.allowancePerDayCents > 0}
+              <p class="result-allowance result-allowance-amount forecast-note">Includes about {money(result.allowancePerDayCents)} a day for everyday spending.</p>
             {/if}
             {#if result.allowanceNote}
               <p class="result-allowance forecast-note">{result.allowanceNote}</p>

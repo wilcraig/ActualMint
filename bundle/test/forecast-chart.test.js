@@ -220,6 +220,21 @@ describe('ForecastChart', () => {
     expect(host.querySelector('svg').textContent).toContain('Warning level $500');
   });
 
+  test('a level, shortfall or lowest with cents shows the cents; whole dollars stay whole', () => {
+    const r = makeResult({
+      startCents: 10000,
+      events: [{ date: '2026-11-03', name: 'Phone', amountCents: -8051 }],
+      levelCents: 1999,
+      breach: { date: '2026-11-03', balanceCents: 1949, shortfallCents: 50, item: { name: 'Phone', amountCents: -8051 } },
+    });
+    const host = mountChart({ result: r });
+    expect(host.querySelector('svg').textContent).toContain('Warning level $19.99');
+    expect(host.querySelector('.forecast-headline').textContent).toContain('Short by $0.50');
+    expect(chartModel(r).markers.find((m) => m.kind === 'breach').label).toBe('Short by $0.50');
+    expect(host.querySelector('.forecast-lowest').textContent).toContain('$19.49');
+    expect(chartModel(specExample()).headline).toContain('Short by $88 ');
+  });
+
   test('no result renders nothing', () => {
     const host = mountChart({ result: null });
     expect(host.querySelector('svg')).toBeNull();

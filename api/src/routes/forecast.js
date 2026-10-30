@@ -25,8 +25,17 @@ router.get('/settings', async (req, res, next) => {
     const settings = await readSettings();
     const client = await getActualClient();
     await syncIfDue(client);
+    // One unreadable balance shows as null rather than failing the tab.
+    const balanceOf = async (id) => {
+      try {
+        return await client.getAccountBalance(id);
+      } catch (err) {
+        console.error('forecast: could not read an account balance:', (err && err.message) || err);
+        return null;
+      }
+    };
     const accounts = await Promise.all(
-      (await eligibleAccounts(client)).map(async (a) => ({ id: a.id, name: a.name, balanceCents: await client.getAccountBalance(a.id) }))
+      (await eligibleAccounts(client)).map(async (a) => ({ id: a.id, name: a.name, balanceCents: await balanceOf(a.id) }))
     );
     res.status(200).json({ settings, accounts, timezone: process.env.TZ || null });
   } catch (err) {
