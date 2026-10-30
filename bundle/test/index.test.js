@@ -23,7 +23,9 @@ vi.mock('../src/widgets/SpendingHeatmap.svelte', () => ({
 vi.mock('../src/widget-builder/mount-toolbar', () => ({ mountWidgetBuilderPanel: vi.fn() }));
 vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
 vi.mock('../src/settings-panel/mount-settings', () => ({ mountSettingsSection: vi.fn() }));
-vi.mock('../src/insights-page/GeneralTab.svelte', () => ({ default: class {} }));
+vi.mock('../src/settings-panel/SettingsLinkCard.svelte', () => ({ default: class SettingsLinkCardMock {} }));
+vi.mock('../src/insights-page/mount-page', () => ({ mountInsightsPage: vi.fn() }));
+vi.mock('../src/insights-page/sidebar-entry', () => ({ mountSidebarEntry: vi.fn() }));
 
 test('mountWidget still runs when accessing sessionStorage throws', async () => {
   const { mountWidget } = await import('../src/mount');
@@ -55,6 +57,38 @@ test('mountSettingsSection is called to mount the settings-page section', async 
   await import('../src/index.js');
 
   expect(mountSettingsSection).toHaveBeenCalled();
+});
+
+test('mounts the Insights page and its sidebar entry, and the Settings page gets the link card', async () => {
+  vi.resetModules();
+
+  const { mountInsightsPage } = await import('../src/insights-page/mount-page');
+  const { mountSidebarEntry } = await import('../src/insights-page/sidebar-entry');
+  const { mountSettingsSection } = await import('../src/settings-panel/mount-settings');
+
+  await import('../src/index.js');
+
+  // Identity checks: a deep-equality matcher on `window` walks its
+  // properties and trips over Svelte's rune globals.
+  expect(mountInsightsPage.mock.lastCall[0]).toBe(document);
+  expect(mountInsightsPage.mock.lastCall[1]).toBe(window);
+  expect(mountSidebarEntry.mock.lastCall[0]).toBe(document);
+  expect(mountSidebarEntry.mock.lastCall[1]).toBe(window);
+  expect(mountSettingsSection.mock.lastCall[2].name).toBe('SettingsLinkCardMock');
+});
+
+test('a throw while mounting the Insights page never stops the sidebar entry or anything else', async () => {
+  vi.resetModules();
+
+  const { mountInsightsPage } = await import('../src/insights-page/mount-page');
+  const { mountSidebarEntry } = await import('../src/insights-page/sidebar-entry');
+  mountInsightsPage.mockImplementationOnce(() => {
+    throw new Error('unexpected markup');
+  });
+  mountSidebarEntry.mockClear();
+
+  await expect(import('../src/index.js')).resolves.toBeDefined();
+  expect(mountSidebarEntry).toHaveBeenCalled();
 });
 
 // Regression test for a final-review finding: the widget builder has exactly

@@ -17,7 +17,9 @@ import SubscriptionRadar from './widgets/SubscriptionRadar.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
-import GeneralTab from './insights-page/GeneralTab.svelte';
+import SettingsLinkCard from './settings-panel/SettingsLinkCard.svelte';
+import { mountInsightsPage } from './insights-page/mount-page';
+import { mountSidebarEntry } from './insights-page/sidebar-entry';
 import { PRESETS, loadSavedScale, applyScale } from './text-scale';
 import { loadSavedFreshThemeEnabled, applyFreshTheme } from './fresh-theme';
 import { fixBudgetIconCrop } from './budget-icon-fix';
@@ -28,9 +30,9 @@ fixBudgetIconCrop(document);
 
 // Applies the saved text size and Fresh theme on every page load
 // (Budget and Schedules pages included, not just /reports*) -- both are
-// controlled from a settings card on Actual's own Settings page (see
-// settings-panel/), not a floating button, but still need to take effect
-// everywhere, not just while that page is open. Referencing
+// controlled from the Insights page's General tab (see insights-page/),
+// not a floating button, but still need to take effect everywhere, not
+// just while that page is open. Referencing
 // `window.localStorage` can itself throw (not just its methods) under
 // strict privacy settings, so each is guarded independently.
 try {
@@ -211,7 +213,23 @@ mountWidget('{{INSIGHTS:subscription-radar:', (host) => {
 // the try/catch above.
 mountWidgetBuilderPanel(document, window, WidgetBuilderPanel);
 
-// Text size and Fresh theme are controlled from a settings card
-// injected next to Actual's own "Themes" card on /settings, not a floating
-// button -- see settings-panel/mount-settings.js.
-mountSettingsSection(document, window, GeneralTab);
+// Actual's Settings page keeps a one-line "Actual Insights" card pointing
+// at the Insights page, where its controls moved -- see
+// settings-panel/mount-settings.js for how it's placed.
+mountSettingsSection(document, window, SettingsLinkCard);
+
+// The Insights page (text size, Fresh theme, savings goals, and later
+// summaries and notification channels) and its sidebar entry. Each is
+// guarded on its own: Actual has no plugin API, so both lean on its (and
+// ABT's) markup, and a surprise there must never stop anything above
+// from mounting or break Actual itself.
+try {
+  mountInsightsPage(document, window);
+} catch {
+  // The page simply never opens; Actual is unaffected.
+}
+try {
+  mountSidebarEntry(document, window);
+} catch {
+  // No sidebar entry; the Settings card above still opens the page.
+}
