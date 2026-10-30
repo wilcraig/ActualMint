@@ -62,7 +62,12 @@ export function mountInsightsPage(doc, win) {
   const style = container.style;
   style.display = 'none';
   style.position = 'fixed';
-  style.zIndex = '10';
+  // Above buttons other add-ons float over Actual's pages (ABT's own
+  // "Insights" template-drawer button on Budget sits at 50 and would
+  // otherwise show through), below Actual's own chrome and overlays
+  // (sidebar, title bar, menus, modals, toasts: 100 and up), all
+  // measured live.
+  style.zIndex = '60';
   style.overflowY = 'auto';
   style.boxSizing = 'border-box';
   doc.body.appendChild(container);
