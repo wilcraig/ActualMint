@@ -23,9 +23,7 @@ Actual Insights adds a layer of charts and budgeting insights on top of a self-h
 All of it is injected into Actual's own Reports page and native UI, with zero
 changes to Actual itself.
 
-![Monthly cash-flow Sankey: income sources flowing into income, then into savings and spending groups, then categories](docs/screenshots/cash-flow-sankey.jpg)
-
-## Why
+## How
 
 Actual Budget's own Reports page supports a "Text widget" that renders plain
 markdown. Actual Insights hijacks that mechanism: drop in a small placeholder
