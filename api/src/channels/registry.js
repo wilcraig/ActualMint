@@ -30,6 +30,8 @@ function listChannelTypes() {
   require('./types/telegram'),
   require('./types/pushover'),
   require('./types/gotify'),
+  require('./types/homeassistant'),
+  require('./types/apprise'),
 ].forEach(register);
 
 module.exports = { CHANNEL_TYPES, listChannelTypes, register, ensureOk };
