@@ -19,6 +19,7 @@ const cashFlowRouter = require('./routes/cash-flow');
 const channelsRouter = require('./routes/channels');
 const summariesRouter = require('./routes/summaries');
 const { startScheduler } = require('./summary/scheduler');
+const { startForecastScheduler } = require('./forecast/scheduler');
 
 const app = express();
 
@@ -77,6 +78,8 @@ if (require.main === module) {
     // the server's TZ; a send missed while the server was down is caught up
     // once if under 12 hours late.
     startScheduler({});
+    // The daily low-balance check, same slot and catch-up rules.
+    startForecastScheduler({});
   });
 }
 
