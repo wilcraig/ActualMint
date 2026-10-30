@@ -17,6 +17,7 @@ const spendingCalendarRouter = require('./routes/spending-calendar');
 const savingsRateRouter = require('./routes/savings-rate');
 const cashFlowRouter = require('./routes/cash-flow');
 const channelsRouter = require('./routes/channels');
+const summariesRouter = require('./routes/summaries');
 const { startScheduler } = require('./summary/scheduler');
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/spending-calendar', spendingCalendarRouter);
 app.use('/api/savings-rate', savingsRateRouter);
 app.use('/api/cash-flow', cashFlowRouter);
 app.use('/api/channels', channelsRouter);
+app.use('/api/summaries', summariesRouter);
 
 app.get('/health', (req, res) => {
   if (hasEverConnected()) {
