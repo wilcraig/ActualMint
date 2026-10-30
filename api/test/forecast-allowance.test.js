@@ -42,8 +42,12 @@ test('under 4 weeks of history returns zero with a note', () => {
 });
 
 test('exactly 28 days of history uses 4 weeks', () => {
-  const txns = [oldest(28), ...weekly([700, 700, 700, 700, 99999])];
+  const txns = [oldest(28), ...weekly([700, 700, 700, 700])];
   expect(run(txns)).toEqual({ perDayCents: 100, weeksUsed: 4, note: null });
+});
+
+test('27 days of history is still under 4 weeks', () => {
+  expect(run([oldest(27), ...weekly([700, 700, 700])])).toEqual({ perDayCents: 0, weeksUsed: 3, note: NOTE });
 });
 
 test('empty list returns zero with a note', () => {
