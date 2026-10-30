@@ -7,10 +7,11 @@
 // here, and give it defaults in settings-store.js.
 const pacing = require('./pacing');
 const largest = require('./largest');
+const upcoming = require('./upcoming');
 const watched = require('./watched');
 const alerts = require('./alerts');
 
-const SECTIONS = [pacing, largest, watched, alerts];
+const SECTIONS = [pacing, largest, upcoming, watched, alerts];
 
 function getSection(id) {
   return SECTIONS.find((section) => section.id === id);
