@@ -7,6 +7,7 @@ import { TABS } from '../src/insights-page/tabs';
 import GeneralTab from '../src/insights-page/GeneralTab.svelte';
 import SummariesTab from '../src/insights-page/SummariesTab.svelte';
 import ChannelsTab from '../src/insights-page/ChannelsTab.svelte';
+import ForecastTab from '../src/insights-page/ForecastTab.svelte';
 
 // A cut-down copy of Actual's main column (docs/insights-page-hosting-notes.md):
 // a title bar holding the help button, then the page content. jsdom has no
@@ -58,12 +59,13 @@ function isShown(el) {
   return el.style.display !== 'none';
 }
 
-test('TABS lists General, Summaries, Channels with General as the real tab', () => {
-  expect(TABS.map((t) => t.id)).toEqual(['general', 'summaries', 'channels']);
-  expect(TABS.map((t) => t.label)).toEqual(['General', 'Summaries', 'Channels']);
+test('TABS lists General, Summaries, Channels, Forecast with General as the real tab', () => {
+  expect(TABS.map((t) => t.id)).toEqual(['general', 'summaries', 'channels', 'forecast']);
+  expect(TABS.map((t) => t.label)).toEqual(['General', 'Summaries', 'Channels', 'Forecast']);
   expect(TABS[0].component).toBe(GeneralTab);
   expect(TABS[1].component).toBe(SummariesTab);
   expect(TABS[2].component).toBe(ChannelsTab);
+  expect(TABS[3].component).toBe(ForecastTab);
 });
 
 test('findContentRegion finds the tallest sibling after the title bar', () => {
@@ -262,4 +264,14 @@ test('covers only the visible part of a scrolled content region, below the title
   expect(pageContainer().style.height).toBe(`${visibleBottom - 48}px`);
   expect(pageContainer().style.left).toBe('300px');
   expect(pageContainer().style.width).toBe('1000px');
+});
+
+test('#actual-insights/forecast selects the Forecast tab and renders it', async () => {
+  unwatch = mountInsightsPage(document, window);
+  window.history.pushState(null, '', '/budget#actual-insights/forecast');
+  await flush();
+
+  const container = pageContainer();
+  expect(container.querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Forecast');
+  expect(container.querySelector('.actualmint-forecast-tab')).not.toBeNull();
 });
