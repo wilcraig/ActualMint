@@ -427,6 +427,8 @@ warning level, the part below it shaded red, and the scheduled items
 labelled on their dates. With more than one account switched on, a picker
 chooses which account the chart shows.
 
+![Forecast tab: Check now results and the chart for an account that dips below its warning level](docs/screenshots/forecast-tab.jpg)
+
 ### The daily check
 
 Turn on **Check every day**, pick a channel and a time, and the API runs the
