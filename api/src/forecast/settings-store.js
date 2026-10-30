@@ -96,6 +96,8 @@ function validateSettings(input) {
     if (channelId !== null && (typeof channelId !== 'string' || channelId.length === 0)) {
       throw new Invalid('must be a channel id', 'channelId');
     }
+    // A daily check with nowhere to send would run silently forever.
+    if (enabled && channelId === null) throw new Invalid('Pick a channel to turn on the daily check', 'channelId');
     const accounts = checkAccounts(merged.accounts);
 
     return { ok: true, settings: { enabled, windowDays, time: merged.time, channelId, accounts } };

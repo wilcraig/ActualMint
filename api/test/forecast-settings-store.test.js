@@ -64,6 +64,19 @@ describe('validateSettings', () => {
     expect(validateSettings(input)).toMatchObject({ ok: false, field: 'accounts.a1.warningLevelCents' });
   });
 
+  test('rejects enabled with no channel, naming the channel field', () => {
+    expect(validateSettings({ ...valid(), channelId: null })).toEqual({
+      ok: false,
+      error: 'Pick a channel to turn on the daily check',
+      field: 'channelId',
+    });
+    expect(validateSettings({ ...valid(), channelId: undefined })).toMatchObject({ ok: false, field: 'channelId' });
+  });
+
+  test('disabled with no channel is valid', () => {
+    expect(validateSettings({ ...valid(), enabled: false, channelId: null }).ok).toBe(true);
+  });
+
   test('rejects a non-boolean enabled', () => {
     expect(validateSettings({ ...valid(), enabled: 'yes' })).toMatchObject({ ok: false, field: 'enabled' });
   });

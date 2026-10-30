@@ -137,6 +137,15 @@ test('PUT settings rejects invalid input with the field and saves nothing', asyn
   expect(fs.existsSync(path.join(DATA_DIR, 'forecast-settings.json'))).toBe(false);
 });
 
+test('PUT settings rejects turning the check on with no channel', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/forecast/settings`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ ...defaultSettings(), enabled: true }) });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'Pick a channel to turn on the daily check', field: 'channelId' });
+  });
+  expect(fs.existsSync(path.join(DATA_DIR, 'forecast-settings.json'))).toBe(false);
+});
+
 test('PUT settings rejects a channel that does not exist', async () => {
   await withServer(async (base) => {
     const res = await fetch(`${base}/api/forecast/settings`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ ...defaultSettings(), channelId: 'c-gone' }) });

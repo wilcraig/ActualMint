@@ -130,6 +130,19 @@ test('shows the API error next to windowDays', async () => {
   expect(err.textContent).toContain('whole number from 1 to 30');
 });
 
+test('turning the daily check on with no channel shows the server error beside the channel', async () => {
+  saveSettings.mockRejectedValue(new ForecastApiError('Pick a channel to turn on the daily check', 'channelId'));
+  const host = await mountTab();
+  const enabled = host.querySelector('#forecast-enabled');
+  enabled.checked = true;
+  change(enabled);
+  await flush();
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings.mock.calls[0][0]).toMatchObject({ enabled: true, channelId: null });
+  const err = host.querySelector('#forecast-channel').closest('.form-row').querySelector('.field-error');
+  expect(err.textContent).toContain('Pick a channel to turn on the daily check');
+});
+
 test('Check now shows a warning line for a breach and No shortfall otherwise, with lowest and allowance note', async () => {
   getSettings.mockImplementation(async () => ({
     settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 0 }, a2: { enabled: true, warningLevelCents: 0 } } }),
