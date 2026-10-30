@@ -23,7 +23,9 @@ function stubClient({ accounts, balances = {}, transactions = {}, schedules = []
       if (b instanceof Error) throw b;
       return b === undefined ? 100000 : b;
     }),
-    getTransactions: jest.fn(async (id) => transactions[id] || []),
+    // Honors the date range like Actual: the allowance reads the past, the
+    // forecast reads posted transactions dated after today.
+    getTransactions: jest.fn(async (id, start, end) => (transactions[id] || []).filter((t) => t.date >= start && t.date <= end)),
     getSchedules: jest.fn(async () => schedules),
     getRules: jest.fn(async () => []),
     getCategoryGroups: jest.fn(async () => []),
@@ -141,4 +143,38 @@ test('generatedAt and today come from now; transactions fetched 12 weeks back to
   expect(r.today).toBe(TODAY);
   expect(client.getTransactions).toHaveBeenCalledWith('a1', '2026-08-07', '2026-10-29');
   expect(client.getSchedules).toHaveBeenCalledTimes(1);
+});
+
+test('a future-dated posted outflow inside the window is an event and lowers the balance on its date', async () => {
+  const txns = [{ id: 'f1', date: '2026-11-01', amount: -30000, payee: 'p-rent' }];
+  const client = stubClient({ accounts: [acct('a1')], transactions: { a1: txns }, balances: { a1: 100000 } });
+  const r = await computeForecast({ client, now: NOW, settings: settings({ a1: { enabled: true, warningLevelCents: 0 } }) });
+  const res = r.results[0];
+  expect(res.events).toEqual([{ date: '2026-11-01', name: 'Landlord', amountCents: -30000 }]);
+  expect(res.days[1].balanceCents).toBe(100000);
+  expect(res.days[2].balanceCents).toBe(70000);
+  expect(client.getTransactions).toHaveBeenCalledWith('a1', '2026-10-31', '2026-11-09');
+});
+
+test('posted transactions dated today or beyond the window are not added; unknown payee falls back', async () => {
+  const txns = [
+    { id: 'f0', date: TODAY, amount: -1000, payee: 'p-rent' },
+    { id: 'f1', date: '2026-11-10', amount: -2000, payee: 'p-rent' },
+    { id: 'f2', date: '2026-11-09', amount: -3000, payee: null },
+  ];
+  const client = stubClient({ accounts: [acct('a1')], transactions: { a1: txns }, balances: { a1: 100000 } });
+  const r = await computeForecast({ client, now: NOW, settings: settings({ a1: { enabled: true, warningLevelCents: 0 } }) });
+  expect(r.results[0].events).toEqual([{ date: '2026-11-09', name: '(No payee)', amountCents: -3000 }]);
+  expect(r.results[0].days[10].balanceCents).toBe(97000);
+});
+
+test('a schedule occurrence posted early is counted once, via the transaction', async () => {
+  // Actual posted the Nov 1 occurrence on Oct 30, so next_date moved to Dec 1.
+  const schedules = [{ id: 's1', completed: false, amount: -50000, payee: 'p-rent', account: 'a1', date: monthly('01'), next_date: '2026-12-01' }];
+  const txns = [{ id: 'm1', date: '2026-11-01', amount: -50000, payee: 'p-rent', schedule: 's1' }];
+  const client = stubClient({ accounts: [acct('a1')], schedules, transactions: { a1: txns }, balances: { a1: 100000 } });
+  const r = await computeForecast({ client, now: NOW, settings: settings({ a1: { enabled: true, warningLevelCents: 0 } }) });
+  const res = r.results[0];
+  expect(res.events).toEqual([{ date: '2026-11-01', name: 'Landlord', amountCents: -50000 }]);
+  expect(res.days[10].balanceCents).toBe(50000);
 });

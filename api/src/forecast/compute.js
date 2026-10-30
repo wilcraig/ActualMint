@@ -43,6 +43,8 @@ async function computeForecast({ client, now, settings }) {
   const windowDays = settings.windowDays;
   const historyStart = daysFrom(todayDate, -HISTORY_WEEKS * 7);
   const yesterday = daysFrom(todayDate, -1);
+  const tomorrow = daysFrom(todayDate, 1);
+  const endOfWindow = daysFrom(todayDate, windowDays);
 
   const accounts = await shared.getAccounts();
   const eligible = (accounts || []).filter(
@@ -57,8 +59,10 @@ async function computeForecast({ client, now, settings }) {
     scheduledPayeeIdsByAccount(shared),
     shared.aqlQuery(q('payees').select('*')),
   ]);
+  const payeeList = (payeeRows && payeeRows.data) || [];
+  const payeeNames = new Map(payeeList.map((p) => [p.id, p.name]));
   const systemPayeeIds = new Set(
-    ((payeeRows && payeeRows.data) || [])
+    payeeList
       .filter((p) => p.name && SYSTEM_PAYEE_NAMES.has(p.name.trim().toLowerCase()))
       .map((p) => p.id)
   );
@@ -70,9 +74,16 @@ async function computeForecast({ client, now, settings }) {
       const transactions = (await shared.getTransactions(account.id, historyStart, yesterday)) || [];
       const excludedPayeeIds = new Set([...systemPayeeIds, ...(payeeIdsByAccount.get(account.id) || [])]);
       const allowance = computeAllowance(transactions, { excludedPayeeIds, today });
+      // getAccountBalance stops at today, and once Actual posts a schedule
+      // early its next_date moves on, so posted transactions dated later in
+      // the window would otherwise be counted nowhere.
+      const posted = (await shared.getTransactions(account.id, tomorrow, endOfWindow)) || [];
+      const postedEvents = posted
+        .filter((t) => t.date > today && t.date <= endOfWindow)
+        .map((t) => ({ name: (t.payee && payeeNames.get(t.payee)) || '(No payee)', date: t.date, amountCents: t.amount }));
       const projection = projectAccount({
         balanceCents,
-        occurrences: occurrences.filter((o) => o.accountId === account.id),
+        occurrences: [...occurrences.filter((o) => o.accountId === account.id), ...postedEvents],
         allowancePerDayCents: allowance.perDayCents,
         warningLevelCents,
         today,
