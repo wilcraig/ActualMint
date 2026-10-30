@@ -16,17 +16,20 @@ function shortDate(date) {
 // The lines under one account's name.
 function accountLines(w) {
   const { breach, lowest } = w;
+  // item.amountCents is Actual-signed (an outflow is negative); show it as a positive amount.
   const cause = breach.item
     ? `${breach.item.name} (${formatMoney(-breach.item.amountCents)})`
     : 'everyday spending';
+  const allowanceLine =
+    w.allowancePerDayCents > 0
+      ? `Includes an allowance of about ${formatMoney(w.allowancePerDayCents)} a day for everyday spending.`
+      : w.allowanceNote;
   return [
     `Goes below ${formatMoney(w.warningLevelCents)} on ${shortDate(breach.date)}, caused by ${cause}.`,
     `${formatMoney(breach.shortfallCents)} below that level.`,
     `Lowest balance: ${formatMoney(lowest.balanceCents)} on ${shortDate(lowest.date)}.`,
-    w.allowancePerDayCents > 0
-      ? `Includes an allowance of about ${formatMoney(w.allowancePerDayCents)} a day for everyday spending.`
-      : w.allowanceNote,
-  ];
+    allowanceLine,
+  ].filter(Boolean);
 }
 
 function toText(warnings) {

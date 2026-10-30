@@ -84,3 +84,16 @@ test('test message', () => {
   expect(m.text).toMatch(/test/i);
   expect(m.data.event).toBe('cash-flow-test');
 });
+
+test('zero allowance with no note omits the line', () => {
+  const m = build([warning({ allowancePerDayCents: 0, allowanceNote: undefined })]);
+  expect(m.text).not.toContain('undefined');
+  expect(m.html).not.toContain('undefined');
+});
+
+test('item amount is Actual-signed: shown positive, raw in data', () => {
+  const m = build([warning()]);
+  expect(m.text).toContain('Mortgage ($1,800.00)');
+  expect(m.text).not.toContain('-$1,800.00');
+  expect(m.data.accounts[0].item.amountCents).toBe(-180000);
+});
