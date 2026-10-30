@@ -6,6 +6,7 @@ import { mountInsightsPage, findContentRegion } from '../src/insights-page/mount
 import { TABS } from '../src/insights-page/tabs';
 import GeneralTab from '../src/insights-page/GeneralTab.svelte';
 import PlaceholderTab from '../src/insights-page/PlaceholderTab.svelte';
+import ChannelsTab from '../src/insights-page/ChannelsTab.svelte';
 
 // A cut-down copy of Actual's main column (docs/insights-page-hosting-notes.md):
 // a title bar holding the help button, then the page content. jsdom has no
@@ -62,7 +63,7 @@ test('TABS lists General, Summaries, Channels with General as the real tab', () 
   expect(TABS.map((t) => t.label)).toEqual(['General', 'Summaries', 'Channels']);
   expect(TABS[0].component).toBe(GeneralTab);
   expect(TABS[1].component).toBe(PlaceholderTab);
-  expect(TABS[2].component).toBe(PlaceholderTab);
+  expect(TABS[2].component).toBe(ChannelsTab);
 });
 
 test('findContentRegion finds the tallest sibling after the title bar', () => {
