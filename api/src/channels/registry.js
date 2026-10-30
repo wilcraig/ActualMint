@@ -22,4 +22,14 @@ function listChannelTypes() {
   });
 }
 
+[
+  require('./types/ntfy'),
+  require('./types/webhook'),
+  require('./types/discord'),
+  require('./types/slack'),
+  require('./types/telegram'),
+  require('./types/pushover'),
+  require('./types/gotify'),
+].forEach(register);
+
 module.exports = { CHANNEL_TYPES, listChannelTypes, register, ensureOk };
