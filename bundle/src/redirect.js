@@ -10,7 +10,9 @@
 // `/budget` renders the Budget view, and `/reports/*` renders Reports
 // (which also matches `/reports` itself).
 
-const REDIRECTED_KEY = 'insights:redirected';
+import { isInsightsPageHash } from './insights-page/route';
+
+const REDIRECTED_KEY ='insights:redirected';
 const REPORTS_PATH = '/reports';
 const REDIRECT_FROM_PATHS = new Set(['/', '/budget']);
 
@@ -19,6 +21,9 @@ const REDIRECT_FROM_PATHS = new Set(['/', '/budget']);
  * @param {Storage} sessionStorage
  */
 export function maybeRedirectToReports(location, sessionStorage) {
+  // A bookmarked or refreshed `/budget#actual-insights` is a deliberate
+  // trip to the Insights page; `location.href` would drop its hash.
+  if (isInsightsPageHash(location.hash)) return;
   if (sessionStorage.getItem(REDIRECTED_KEY)) return;
   if (!REDIRECT_FROM_PATHS.has(location.pathname)) return;
 
