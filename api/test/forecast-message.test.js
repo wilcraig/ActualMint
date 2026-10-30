@@ -9,7 +9,7 @@ const warning = (over = {}) => ({
     date: '2026-11-13',
     balanceCents: 45200,
     shortfallCents: 4800,
-    item: { name: 'Mortgage', amountCents: 180000 },
+    item: { name: 'Mortgage', amountCents: -180000 },
   },
   lowest: { date: '2026-11-14', balanceCents: 30000 },
   allowancePerDayCents: 2500,
@@ -25,7 +25,7 @@ test('one warning: title, text, data', () => {
   expect(m.text).toContain('Checking');
   expect(m.text).toContain('Nov 13');
   expect(m.text).toContain('Mortgage');
-  expect(m.text).toContain(formatMoney(-180000));
+  expect(m.text).toContain(formatMoney(180000));
   expect(m.text).toContain(formatMoney(4800));
   expect(m.text).toContain(formatMoney(30000));
   expect(m.text).toContain(`about ${formatMoney(2500)} a day`);
@@ -42,7 +42,7 @@ test('one warning: title, text, data', () => {
     shortfallCents: 4800,
     lowestCents: 30000,
     lowestDate: '2026-11-14',
-    item: { name: 'Mortgage', amountCents: 180000 },
+    item: { name: 'Mortgage', amountCents: -180000 },
     allowancePerDayCents: 2500,
   });
 });
