@@ -17,7 +17,7 @@ import SubscriptionRadar from './widgets/SubscriptionRadar.svelte';
 import { mountWidgetBuilderPanel } from './widget-builder/mount-toolbar';
 import WidgetBuilderPanel from './widget-builder/WidgetBuilderPanel.svelte';
 import { mountSettingsSection } from './settings-panel/mount-settings';
-import SettingsSection from './settings-panel/SettingsSection.svelte';
+import GeneralTab from './insights-page/GeneralTab.svelte';
 import { PRESETS, loadSavedScale, applyScale } from './text-scale';
 import { loadSavedFreshThemeEnabled, applyFreshTheme } from './fresh-theme';
 import { fixBudgetIconCrop } from './budget-icon-fix';
@@ -214,4 +214,4 @@ mountWidgetBuilderPanel(document, window, WidgetBuilderPanel);
 // Text size and Fresh theme are controlled from a settings card
 // injected next to Actual's own "Themes" card on /settings, not a floating
 // button -- see settings-panel/mount-settings.js.
-mountSettingsSection(document, window, SettingsSection);
+mountSettingsSection(document, window, GeneralTab);

@@ -23,7 +23,7 @@ vi.mock('../src/widgets/SpendingHeatmap.svelte', () => ({
 vi.mock('../src/widget-builder/mount-toolbar', () => ({ mountWidgetBuilderPanel: vi.fn() }));
 vi.mock('../src/widget-builder/WidgetBuilderPanel.svelte', () => ({ default: class {} }));
 vi.mock('../src/settings-panel/mount-settings', () => ({ mountSettingsSection: vi.fn() }));
-vi.mock('../src/settings-panel/SettingsSection.svelte', () => ({ default: class {} }));
+vi.mock('../src/insights-page/GeneralTab.svelte', () => ({ default: class {} }));
 
 test('mountWidget still runs when accessing sessionStorage throws', async () => {
   const { mountWidget } = await import('../src/mount');

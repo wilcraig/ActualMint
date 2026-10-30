@@ -4,12 +4,13 @@
   import { applyFreshTheme, loadSavedFreshThemeEnabled, saveFreshThemeEnabled } from '../fresh-theme';
   import GoalsList from './GoalsList.svelte';
 
+  // The Insights page's General tab: what used to be the "Actual Insights"
+  // card on Actual's Settings page, moved here unchanged (same controls,
+  // same storage). The page supplies the "Actual Insights" title, so this
+  // only carries its own "General" heading, and no collapse toggle -- the
+  // tab bar already decides what's showing.
   let currentPx = $state(PRESETS[0].px);
   let freshEnabled = $state(false);
-  // Local-only (not persisted, per the task's own card layout) -- defaults
-  // to expanded so the settings this card already showed stay visible
-  // without the user needing to discover a new toggle.
-  let expanded = $state(true);
 
   onMount(() => {
     let storage;
@@ -26,10 +27,6 @@
     applyScale(document, currentPx);
     applyFreshTheme(document, freshEnabled);
   });
-
-  function toggleExpanded() {
-    expanded = !expanded;
-  }
 
   function selectTextSize(px) {
     currentPx = px;
@@ -52,75 +49,51 @@
   }
 </script>
 
-<div class="actualmint-settings-section settings-section">
-  <button
-    type="button"
-    class="section-toggle"
-    aria-expanded={expanded ? 'true' : 'false'}
-    onclick={toggleExpanded}
-  >
-    <h3 class="section-title">Actual Insights</h3>
-    <svg
-      class="chevron"
-      class:chevron-expanded={expanded}
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  </button>
+<div class="actualmint-settings-section actualmint-general-tab settings-section">
+  <div class="section-header">
+    <h3 class="section-title">General</h3>
+  </div>
 
-  {#if expanded}
-    <div class="settings-list">
-      <div class="setting-row">
-        <span class="setting-text">
-          <span class="setting-label" id="actualmint-text-size-label">Text size</span>
-          <span class="setting-desc">Make the whole app larger or smaller.</span>
-        </span>
-        <span class="pill-group" role="group" aria-labelledby="actualmint-text-size-label">
-          {#each PRESETS as preset (preset.id)}
-            <button
-              type="button"
-              id="actualmint-text-size-pill-{preset.id}"
-              class="pill"
-              class:pill--active={currentPx === preset.px}
-              aria-pressed={currentPx === preset.px ? 'true' : 'false'}
-              onclick={() => selectTextSize(preset.px)}
-            >
-              {preset.label}
-            </button>
-          {/each}
-        </span>
-      </div>
-
-      <div class="setting-row">
-        <span class="setting-text">
-          <span class="setting-label">Fresh theme</span>
-          <span class="setting-desc">Recolor Actual in a light, airy teal and white.</span>
-        </span>
-        <label class="setting-toggle switch">
-          <input
-            type="checkbox"
-            class="switch__input"
-            checked={freshEnabled}
-            onchange={handleFreshToggle}
-          />
-          <span class="switch__track"><span class="switch__thumb"></span></span>
-        </label>
-      </div>
-
-      <GoalsList />
+  <div class="settings-list">
+    <div class="setting-row">
+      <span class="setting-text">
+        <span class="setting-label" id="actualmint-text-size-label">Text size</span>
+        <span class="setting-desc">Make the whole app larger or smaller.</span>
+      </span>
+      <span class="pill-group" role="group" aria-labelledby="actualmint-text-size-label">
+        {#each PRESETS as preset (preset.id)}
+          <button
+            type="button"
+            id="actualmint-text-size-pill-{preset.id}"
+            class="pill"
+            class:pill--active={currentPx === preset.px}
+            aria-pressed={currentPx === preset.px ? 'true' : 'false'}
+            onclick={() => selectTextSize(preset.px)}
+          >
+            {preset.label}
+          </button>
+        {/each}
+      </span>
     </div>
-  {/if}
+
+    <div class="setting-row">
+      <span class="setting-text">
+        <span class="setting-label">Fresh theme</span>
+        <span class="setting-desc">Recolor Actual in a light, airy teal and white.</span>
+      </span>
+      <label class="setting-toggle switch">
+        <input
+          type="checkbox"
+          class="switch__input"
+          checked={freshEnabled}
+          onchange={handleFreshToggle}
+        />
+        <span class="switch__track"><span class="switch__thumb"></span></span>
+      </label>
+    </div>
+
+    <GoalsList />
+  </div>
 </div>
 
 <style>
@@ -129,7 +102,7 @@
     flex-direction: column;
   }
 
-  /* Shared settings-section visual conventions (card, toggle header, row
+  /* Shared settings-section visual conventions (card, header, row
      layout, label/description typography) are declared :global() here so
      GoalsList.svelte -- rendered as a child -- can use the same class
      names on its own markup and visually match, without a shared
@@ -143,33 +116,16 @@
     border-radius: 6.5px;
   }
 
-  :global(.settings-section .section-toggle) {
+  :global(.settings-section .section-header) {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
     padding: 12px 16px;
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    text-align: left;
   }
 
   :global(.settings-section .section-title) {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-  }
-
-  :global(.settings-section .chevron) {
-    flex-shrink: 0;
-    transition: transform 0.15s ease;
-  }
-
-  :global(.settings-section .chevron.chevron-expanded) {
-    transform: rotate(180deg);
   }
 
   :global(.settings-section .settings-list) {
