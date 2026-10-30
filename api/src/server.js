@@ -17,6 +17,7 @@ const spendingCalendarRouter = require('./routes/spending-calendar');
 const savingsRateRouter = require('./routes/savings-rate');
 const cashFlowRouter = require('./routes/cash-flow');
 const channelsRouter = require('./routes/channels');
+const { startScheduler } = require('./summary/scheduler');
 
 const app = express();
 
@@ -70,6 +71,10 @@ if (require.main === module) {
   const port = Number(process.env.PORT) || 3011;
   app.listen(port, () => {
     console.log(`insights-api listening on :${port}`);
+    // Budget summaries go out from here, with no browser tab open. Fires in
+    // the server's TZ; a send missed while the server was down is caught up
+    // once if under 12 hours late.
+    startScheduler({});
   });
 }
 
