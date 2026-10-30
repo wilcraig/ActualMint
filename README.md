@@ -420,7 +420,7 @@ outflow that day, and the lowest balance in the window.
 ### Check now and the chart
 
 **Check now** computes the forecast from your saved settings and shows it
-without sending anything or touching the send history. For each account it
+without sending anything or touching the check history. For each account it
 shows the first shortfall (or "No shortfall in the next N days") and the
 lowest balance, plus a chart: the projected balance, a dashed line at the
 warning level, the part below it shaded red, and the scheduled items
@@ -451,8 +451,9 @@ check once a day in its `TZ`.
   sent, so a failed one is tried again the next day.
 - **Send test message** sends one short test message to the saved channel
   (no retries) and shows the result.
-- **Send history** lists the last 50 checks: when, the outcome, and whether
-  it was the schedule or a catch-up.
+- **Check history** lists the last 50 checks: when, the outcome (who was
+  warned, "Nothing to send", or the error), and whether it was the schedule
+  or a catch-up.
 
 ### Warning payload
 

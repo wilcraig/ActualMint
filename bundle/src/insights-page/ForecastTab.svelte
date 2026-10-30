@@ -6,7 +6,7 @@
 
   // The Insights page's Forecast tab: which accounts to watch (and each
   // one's warning level), the daily check (channel, time, look-ahead window),
-  // Check now, Send test message and the send history. Computing and
+  // Check now, Send test message and the check history. Computing and
   // sending happen in insights-api; this only edits settings and shows the
   // preview. Amounts are integer cents in settings, dollars in the fields.
 
@@ -179,6 +179,17 @@
 
   function channelName(id) {
     return channels.find((c) => c.id === id)?.name;
+  }
+
+  // Every run lands in history, sent or not, so say what each one did.
+  // Names only when the tab knows every warned account; otherwise a count.
+  function historyResult(entry) {
+    if (!entry.ok) return `✗ ${entry.error ?? ''}`;
+    const warned = entry.warned || [];
+    if (warned.length === 0) return 'Nothing to send';
+    const names = warned.map((id) => accounts.find((a) => a.id === id)?.name);
+    if (names.every(Boolean)) return `Warned: ${names.join(', ')}`;
+    return `Warned: ${warned.length} account${warned.length === 1 ? '' : 's'}`;
   }
 
   function formatWhen(iso) {
@@ -357,9 +368,9 @@
         <p class="forecast-note">Press Check now to see the forecast.</p>
       {/if}
 
-      <h4 class="group-label">Send history</h4>
+      <h4 class="group-label">Check history</h4>
       {#if history.length === 0}
-        <p class="forecast-note">Nothing sent yet.</p>
+        <p class="forecast-note">No checks yet.</p>
       {:else}
         <table class="history-table">
           <thead>
@@ -369,7 +380,7 @@
             {#each history as entry, i (i)}
               <tr class="history-row">
                 <td>{formatWhen(entry.at)}</td>
-                <td class={entry.ok ? 'history-ok' : 'history-fail'}>{entry.ok ? '✓' : `✗ ${entry.error ?? ''}`}</td>
+                <td class={entry.ok ? 'history-ok' : 'history-fail'}>{historyResult(entry)}</td>
                 <td>{entry.trigger}</td>
               </tr>
             {/each}

@@ -280,9 +280,29 @@ test('shows the empty state when no accounts are on', async () => {
   expect(host.textContent).toContain('Switch on an account above to see its forecast.');
 });
 
-test('lists send history', async () => {
+test('check history says who was warned, Nothing to send, or the error', async () => {
+  getHistory.mockResolvedValue({
+    history: [
+      { at: '2026-10-29T13:00:00.000Z', ok: true, trigger: 'schedule', warned: ['a1', 'a2'] },
+      { at: '2026-10-28T13:00:00.000Z', ok: true, trigger: 'schedule', warned: [] },
+      { at: '2026-10-27T13:00:00.000Z', ok: false, trigger: 'catch-up', warned: [], error: 'ntfy: 500' },
+      { at: '2026-10-26T13:00:00.000Z', ok: true, trigger: 'schedule', warned: ['a1', 'gone'] },
+    ],
+  });
   const host = await mountTab();
-  expect(host.querySelectorAll('.history-row')).toHaveLength(1);
+  expect(host.textContent).toContain('Check history');
+  expect(host.textContent).not.toContain('Send history');
+  const rows = [...host.querySelectorAll('.history-row')].map((r) => r.children[1].textContent.trim());
+  expect(rows[0]).toBe('Warned: Checking, Savings');
+  expect(rows[1]).toBe('Nothing to send');
+  expect(rows[2]).toContain('ntfy: 500');
+  expect(rows[3]).toBe('Warned: 2 accounts');
+});
+
+test('empty check history says No checks yet.', async () => {
+  getHistory.mockResolvedValue({ history: [] });
+  const host = await mountTab();
+  expect(host.textContent).toContain('No checks yet.');
 });
 
 async function turnOn(host, id) {
