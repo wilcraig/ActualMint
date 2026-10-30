@@ -68,17 +68,16 @@
     }
   }
 
-  // Re-runs the same initial fetch every time mount-settings.js actually
-  // (re)attaches this section next to a found settings anchor -- not just
-  // once at bundle load -- so the category picker and goal list refresh
-  // whenever the user lands on /settings, including returning to it after
-  // navigating away (e.g. after enabling carryover on a category
-  // elsewhere in Actual).
+  // Re-runs the same initial fetch every time the Insights page opens
+  // (mount-page.js dispatches insights:page-shown) -- not just once at
+  // bundle load -- so the category picker and goal list refresh whenever
+  // the user comes back to the page after navigating away (e.g. after
+  // enabling carryover on a category elsewhere in Actual).
   onMount(() => {
     load();
-    document.addEventListener('insights:settings-attached', load);
+    document.addEventListener('insights:page-shown', load);
     return () => {
-      document.removeEventListener('insights:settings-attached', load);
+      document.removeEventListener('insights:page-shown', load);
     };
   });
 
