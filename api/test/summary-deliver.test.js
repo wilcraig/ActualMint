@@ -188,3 +188,15 @@ test('unreadable settings never throw', async () => {
   errorSpy.mockRestore();
   expect(result.ok).toBe(false);
 });
+
+test('a manual send that fails reports at once: one attempt, no sleeps, no failure alert, still recorded', async () => {
+  const dataDir = await setup();
+  const f = fakes({ results: [{ ok: false, error: 'HTTP 500' }] });
+  const result = await run(dataDir, f, 'manual');
+  expect(result).toMatchObject({ ok: false, error: 'HTTP 500' });
+  expect(mainCalls(f)).toHaveLength(1);
+  expect(f.sleep).not.toHaveBeenCalled();
+  expect(alertCalls(f)).toHaveLength(0);
+  const [entry] = await readHistory(dataDir);
+  expect(entry).toMatchObject({ ok: false, trigger: 'manual', error: 'HTTP 500' });
+});

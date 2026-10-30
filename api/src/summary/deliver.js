@@ -27,10 +27,13 @@ async function freshen(client, trigger, syncIfDueImpl) {
 
 // Sends, retrying transient failures. A missing channel won't fix itself
 // by waiting, so it fails at once.
-async function sendWithRetries(channelId, message, { notifyImpl, sleep, dataDir }) {
+// A manual "Send now" passes retry: false: someone is watching the button, so
+// it reports the first failure straight away instead of holding the request
+// open for the retry waits.
+async function sendWithRetries(channelId, message, { notifyImpl, sleep, dataDir, retry = true }) {
   if (!channelId) return { ok: false, error: CHANNEL_NOT_FOUND };
   let result = await notifyImpl(channelId, message, { dataDir });
-  for (const delay of RETRY_DELAYS_MS) {
+  for (const delay of retry ? RETRY_DELAYS_MS : []) {
     if (result.ok || result.error === CHANNEL_NOT_FOUND) break;
     await sleep(delay);
     result = await notifyImpl(channelId, message, { dataDir });
@@ -89,10 +92,18 @@ async function deliver({
   }
 
   try {
-    if (!result) result = await sendWithRetries(delivery.channelId, toMessage(summary), { notifyImpl, sleep, dataDir });
+    if (!result) {
+      result = await sendWithRetries(delivery.channelId, toMessage(summary), {
+        notifyImpl,
+        sleep,
+        dataDir,
+        retry: trigger !== 'manual',
+      });
+    }
 
     let error = result.ok ? undefined : result.error;
-    if (!result.ok && settings.failureChannelId) {
+    // The person pressing Send now sees the error on screen; no push alert.
+    if (!result.ok && trigger !== 'manual' && settings.failureChannelId) {
       const alert = await notifyImpl(settings.failureChannelId, failureAlert(delivery, result.error), { dataDir });
       if (!alert.ok) error = `${error}; failure alert not sent: ${alert.error}`;
     }
