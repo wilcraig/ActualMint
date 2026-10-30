@@ -6,10 +6,11 @@
 // To add a section (the data health panel, say), write its module, add it
 // here, and give it defaults in settings-store.js.
 const pacing = require('./pacing');
+const largest = require('./largest');
 const watched = require('./watched');
 const alerts = require('./alerts');
 
-const SECTIONS = [pacing, watched, alerts];
+const SECTIONS = [pacing, largest, watched, alerts];
 
 function getSection(id) {
   return SECTIONS.find((section) => section.id === id);

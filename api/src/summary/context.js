@@ -8,7 +8,7 @@ const { formatDay } = require('./period');
 // counting rules the charts use. Income groups, the Transfers group and
 // excluded categories are never counted as spending; the Sankey's
 // drop-refund-categories rule deliberately does not apply here.
-async function buildContext({ client, now, period, settings, delivery, reportedIds = new Set() }) {
+async function buildContext({ client, now, period, settings, delivery, reportedIds = new Set(), lastSentAt = null }) {
   const year = now.getFullYear();
   const monthNum = now.getMonth() + 1;
   const daysInMonth = daysInMonthFor(year, monthNum);
@@ -48,6 +48,8 @@ async function buildContext({ client, now, period, settings, delivery, reportedI
     settings,
     delivery,
     reportedIds,
+    // When this delivery last went out (null on its first send).
+    lastSentAt,
     categories,
     isCountedCategory(id) {
       const category = categories.get(id);
