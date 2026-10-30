@@ -1,3 +1,4 @@
+import { tick } from 'svelte';
 import InsightsPage from './InsightsPage.svelte';
 import { isInsightsPageHash, tabFromHash } from './route';
 import { watchRoute } from '../widget-builder/route-watcher';
@@ -190,6 +191,21 @@ export function mountInsightsPage(doc, win) {
     if (open) place();
   }
 
+  // Lets tabs refresh their data each time the page is opened, not only on
+  // first mount (e.g. GoalsList picking up a category whose carryover was
+  // just turned on elsewhere in Actual). Waits for the tabId set above to
+  // flush: dispatched at once, a tab being swapped out by the new hash would
+  // still be listening and reload just as it's torn down. Errors stay here
+  // so they can't break the route watcher.
+  async function announceShown() {
+    try {
+      await tick();
+      if (open) doc.dispatchEvent(new win.CustomEvent('insights:page-shown'));
+    } catch (err) {
+      console.error('insights page: page-shown failed:', err);
+    }
+  }
+
   function update() {
     const shouldOpen = isInsightsPageHash(win.location.hash);
     if (shouldOpen) {
@@ -198,12 +214,7 @@ export function mountInsightsPage(doc, win) {
       open = true;
       startObserving();
       place();
-      if (opening) {
-        // Lets tabs refresh their data each time the page is opened, not
-        // only on first mount (e.g. GoalsList picking up a category whose
-        // carryover was just turned on elsewhere in Actual).
-        doc.dispatchEvent(new win.CustomEvent('insights:page-shown'));
-      }
+      if (opening) announceShown();
     } else if (open) {
       open = false;
       stopObserving();

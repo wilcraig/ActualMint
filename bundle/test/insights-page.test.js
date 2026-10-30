@@ -2,6 +2,7 @@ vi.mock('../src/api-client', () => ({
   fetchApi: vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })),
 }));
 
+import { fetchApi } from '../src/api-client';
 import { mountInsightsPage, findContentRegion } from '../src/insights-page/mount-page';
 import { TABS } from '../src/insights-page/tabs';
 import GeneralTab from '../src/insights-page/GeneralTab.svelte';
@@ -184,6 +185,31 @@ test('dispatches insights:page-shown each time the page opens (so the goals list
   await flush();
   expect(listener).toHaveBeenCalledTimes(2);
   document.removeEventListener('insights:page-shown', listener);
+});
+
+// The outgoing tab is Forecast because earlier tests leave Summaries and
+// Channels instances listening (unmount never destroys the page), and no
+// test before this one opens Forecast, so its API calls are this page's own.
+test('reopening on a different tab does not reload the outgoing tab, and page-shown still fires', async () => {
+  unwatch = mountInsightsPage(document, window);
+  window.history.pushState(null, '', '/budget#actual-insights/forecast');
+  await flush();
+  window.history.pushState(null, '', '/budget');
+  await flush();
+
+  const listener = vi.fn();
+  document.addEventListener('insights:page-shown', listener);
+  fetchApi.mockClear();
+  window.history.pushState(null, '', '/budget#actual-insights/channels');
+  await flush();
+  await flush();
+  document.removeEventListener('insights:page-shown', listener);
+
+  expect(listener).toHaveBeenCalledTimes(1);
+  const paths = fetchApi.mock.calls.map(([path]) => path);
+  expect(paths.filter((p) => p.startsWith('/api/forecast'))).toEqual([]);
+  expect(paths).toContain('/api/channels');
+  expect(pageContainer().querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Channels');
 });
 
 test('waits for Actual to render its content region before showing', async () => {
