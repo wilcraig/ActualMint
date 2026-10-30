@@ -100,37 +100,43 @@ describe('startForecastScheduler', () => {
   });
 
   test('a slot missed after startedAt is not caught up', async () => {
-    cfg = settings({ time: '07:00' });
-    clock = at(29, 7, 0, 30);
-    const runImpl = jest.fn(async () => ({ ok: true }));
-    start(runImpl, { startedAt: at(29, 6, 0) });
-    // Slot 07:00 is "current" now, so it runs as schedule; switch time so it is missed instead.
-    await advance(60000);
-    runImpl.mockClear();
     cfg = settings({ time: '07:10' });
     clock = at(29, 7, 20);
-    await advance(40000);
+    const runImpl = jest.fn(async () => ({ ok: true }));
+    start(runImpl, { startedAt: at(29, 7, 0) });
+    await advance(60000);
     expect(runImpl).not.toHaveBeenCalled();
   });
 
   test('a runImpl that throws does not stop later ticks', async () => {
-    const errorSpy = console.error;
     const runImpl = jest.fn(async () => { throw new Error('boom'); });
     start(runImpl);
-    await advance(40000);
+    await advance(40000); // 07:00:10, runs and throws
     expect(runImpl).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalled();
-    cfg = settings({ time: '08:00' });
-    clock = at(29, 7, 59, 50);
-    await advance(20000);
+    expect(console.error).toHaveBeenCalled();
+    cfg = settings({ time: '07:05' });
+    await advance(5 * 60000); // 07:05:10, a new slot
     expect(runImpl).toHaveBeenCalledTimes(2);
   });
 
-  test('stop stops ticking', async () => {
+  test('stop before the due tick means no run', async () => {
     const runImpl = jest.fn(async () => ({ ok: true }));
     start(runImpl);
+    await advance(0);
     stop();
-    await advance(120000);
+    await advance(120000); // well past 07:00
+    expect(runImpl).not.toHaveBeenCalled();
+  });
+
+  test('stop while a tick is reading settings means no run', async () => {
+    clock = at(29, 7, 0, 10);
+    let release;
+    const runImpl = jest.fn(async () => ({ ok: true }));
+    start(runImpl, { readSettingsImpl: () => new Promise((r) => { release = r; }) });
+    await advance(0);
+    stop();
+    release(cfg);
+    await advance(0);
     expect(runImpl).not.toHaveBeenCalled();
   });
 });
