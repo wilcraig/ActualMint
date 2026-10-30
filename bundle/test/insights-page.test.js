@@ -5,7 +5,7 @@ vi.mock('../src/api-client', () => ({
 import { mountInsightsPage, findContentRegion } from '../src/insights-page/mount-page';
 import { TABS } from '../src/insights-page/tabs';
 import GeneralTab from '../src/insights-page/GeneralTab.svelte';
-import PlaceholderTab from '../src/insights-page/PlaceholderTab.svelte';
+import SummariesTab from '../src/insights-page/SummariesTab.svelte';
 import ChannelsTab from '../src/insights-page/ChannelsTab.svelte';
 
 // A cut-down copy of Actual's main column (docs/insights-page-hosting-notes.md):
@@ -62,7 +62,7 @@ test('TABS lists General, Summaries, Channels with General as the real tab', () 
   expect(TABS.map((t) => t.id)).toEqual(['general', 'summaries', 'channels']);
   expect(TABS.map((t) => t.label)).toEqual(['General', 'Summaries', 'Channels']);
   expect(TABS[0].component).toBe(GeneralTab);
-  expect(TABS[1].component).toBe(PlaceholderTab);
+  expect(TABS[1].component).toBe(SummariesTab);
   expect(TABS[2].component).toBe(ChannelsTab);
 });
 
@@ -101,7 +101,7 @@ test('a direct load with the hash already set shows the page', async () => {
   expect(pageContainer().querySelector('[role="tab"][aria-selected="true"]').textContent.trim()).toBe('Channels');
 });
 
-test('#actual-insights/summaries selects the Summaries tab and renders the placeholder', async () => {
+test('#actual-insights/summaries selects the Summaries tab and renders it', async () => {
   unwatch = mountInsightsPage(document, window);
   window.history.pushState(null, '', '/budget#actual-insights/summaries');
   await flush();
@@ -109,7 +109,7 @@ test('#actual-insights/summaries selects the Summaries tab and renders the place
   const container = pageContainer();
   const selected = container.querySelector('[role="tab"][aria-selected="true"]');
   expect(selected.textContent.trim()).toBe('Summaries');
-  expect(container.querySelector('.actualmint-placeholder-tab')).not.toBeNull();
+  expect(container.querySelector('.actualmint-summaries-tab')).not.toBeNull();
   expect(container.querySelector('.actualmint-general-tab')).toBeNull();
 });
 
