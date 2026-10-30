@@ -191,8 +191,22 @@ export function mountSidebarEntry(doc, win) {
     suppressed.clear();
   }
 
+  // An item turning active while the page is open means the framework
+  // moved its highlight (the back button, seen live), so every item we
+  // un-highlighted earlier in that sidebar is no longer its active one.
+  // It may never say so -- Svelte's class directive un-marks with
+  // classList.toggle, a silent no-op on an item we already un-marked --
+  // so forget them here rather than restore a stale highlight on close.
+  function forgetStale(root, actives) {
+    if (actives.length === 0) return;
+    for (const el of suppressed.keys()) {
+      if (root.contains(el) && !actives.includes(el)) suppressed.delete(el);
+    }
+  }
+
   function selectNative(sidebar, link) {
     const active = sidebar.root.querySelector(`a[aria-current="page"]:not([${LINK_ATTR}])`);
+    if (active) forgetStale(sidebar.root, [active]);
     if (active) {
       const original = active.getAttribute('class');
       if (levelOf(active) === levelOf(link)) nativeActiveClass = original;
@@ -208,9 +222,9 @@ export function mountSidebarEntry(doc, win) {
   }
 
   function selectAbt(sidebar, link) {
-    for (const active of sidebar.root.querySelectorAll(`.active:not([${LINK_ATTR}])`)) {
-      if (active.matches('button')) suppress(active, (el) => el.classList.remove('active'));
-    }
+    const actives = Array.from(sidebar.root.querySelectorAll(`button.active:not([${LINK_ATTR}])`));
+    forgetStale(sidebar.root, actives);
+    for (const active of actives) suppress(active, (el) => el.classList.remove('active'));
     link.classList.add('active');
   }
 
@@ -245,17 +259,42 @@ export function mountSidebarEntry(doc, win) {
   // Our own writes (inserting the item, toggling classes) would otherwise
   // re-trigger the observer forever; disconnecting also drops any records
   // they already queued.
+  //
+  // While the page is open it also watches class/aria-current changes in
+  // each sidebar: that's React or Svelte moving the highlight (seen live
+  // with the back button, whose popstate reaches us before the framework
+  // re-renders). A framework write to an item we un-highlighted means the
+  // framework owns that item's state again, so it's dropped from
+  // `suppressed` and never restored stale; the re-run then un-highlights
+  // whichever item is active now.
+  function onMutations(records) {
+    for (const record of records) {
+      if (record.type === 'attributes') suppressed.delete(record.target);
+    }
+    run();
+  }
+
   function run() {
     if (observer) observer.disconnect();
+    let sidebars = [];
     try {
       ensure();
+      if (isInsightsPageHash(win.location.hash)) sidebars = findSidebars(doc);
     } catch {
       // Never let a surprise in Actual's or ABT's markup break the page.
     }
-    if (observer) observer.observe(doc.body, { childList: true, subtree: true });
+    if (!observer) return;
+    observer.observe(doc.body, { childList: true, subtree: true });
+    for (const { root } of sidebars) {
+      observer.observe(root, {
+        attributes: true,
+        attributeFilter: ['class', 'aria-current'],
+        subtree: true,
+      });
+    }
   }
 
-  observer = new win.MutationObserver(run);
+  observer = new win.MutationObserver(onMutations);
   win.addEventListener('hashchange', run);
   const unwatch = watchRoute(win, run);
 

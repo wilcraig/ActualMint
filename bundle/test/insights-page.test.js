@@ -197,3 +197,45 @@ test('waits for Actual to render its content region before showing', async () =>
   expect(isShown(pageContainer())).toBe(true);
   expect(document.getElementById('content').style.visibility).toBe('hidden');
 });
+
+test('follows a theme change (a <style> added to <head>) while open', async () => {
+  const column = document.getElementById('main-column');
+  column.style.backgroundColor = 'rgb(1, 2, 3)';
+  unwatch = mountInsightsPage(document, window);
+  window.history.pushState(null, '', '/budget#actual-insights');
+  await flush();
+  expect(pageContainer().style.backgroundColor).toBe('rgb(1, 2, 3)');
+
+  column.style.backgroundColor = 'rgb(4, 5, 6)';
+  const themeStyle = document.createElement('style');
+  document.head.appendChild(themeStyle);
+  await flush();
+
+  expect(pageContainer().style.backgroundColor).toBe('rgb(4, 5, 6)');
+  themeStyle.remove();
+});
+
+test('covers the content region exactly, un-zooming its rect under the text-size zoom', async () => {
+  const region = document.getElementById('content');
+  region.getBoundingClientRect = () => ({ top: 60, left: 400, width: 1000, height: 840, right: 1400, bottom: 900 });
+  unwatch = mountInsightsPage(document, window);
+  window.history.pushState(null, '', '/budget#actual-insights');
+  await flush();
+  expect(pageContainer().style.top).toBe('60px');
+  expect(pageContainer().style.left).toBe('400px');
+  expect(pageContainer().style.width).toBe('1000px');
+
+  // jsdom has no CSS zoom, so report it the way Chromium does.
+  const realGetComputedStyle = window.getComputedStyle.bind(window);
+  const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+    const computed = realGetComputedStyle(el);
+    return el === document.documentElement ? { ...computed, zoom: '2' } : computed;
+  });
+  window.dispatchEvent(new Event('resize'));
+  await flush();
+  expect(pageContainer().style.top).toBe('30px');
+  expect(pageContainer().style.left).toBe('200px');
+  expect(pageContainer().style.width).toBe('500px');
+  expect(pageContainer().style.height).toBe('420px');
+  spy.mockRestore();
+});

@@ -222,3 +222,32 @@ test('unmount removes the entries and restores any item it un-highlighted', asyn
   expect(entries()).toHaveLength(0);
   expect(budget.classList.contains('active')).toBe(true);
 });
+
+// Seen live: the back button fires popstate before Svelte re-renders, so
+// the page opens over the *old* route's item, then ABT moves `.active` to
+// the new route's item while the page is open. Closing must not put back
+// the stale highlight.
+test('a highlight the framework moves while the page is open is followed, never restored stale', async () => {
+  document.body.innerHTML = ABT_STANDARD;
+  unmount = mountSidebarEntry(document, window);
+  await flush();
+  const item = (label) => Array.from(document.querySelectorAll('.nav-link')).find((b) => b.textContent.trim() === label);
+
+  window.history.pushState(null, '', '/budget#actual-insights');
+  await flush();
+  expect(item('Budget').classList.contains('active')).toBe(false);
+
+  // The framework catches up: Reports is its active route now. Svelte's
+  // class directive uses classList.toggle, so un-marking Budget (whose
+  // `active` we already removed) is a no-op that leaves no trace.
+  item('Reports').classList.add('active');
+  await flush();
+  expect(item('Reports').classList.contains('active')).toBe(false);
+  expect(item('Insights').classList.contains('active')).toBe(true);
+
+  window.history.pushState(null, '', '/reports');
+  await flush();
+  expect(item('Budget').classList.contains('active')).toBe(false);
+  expect(item('Reports').classList.contains('active')).toBe(true);
+  expect(item('Insights').classList.contains('active')).toBe(false);
+});

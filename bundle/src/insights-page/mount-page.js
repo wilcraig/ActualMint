@@ -72,6 +72,7 @@ export function mountInsightsPage(doc, win, { findRegion = findContentRegion } =
   let covered = null; // the content region we hid, and its own visibility
   let coveredVisibility = '';
   let observer = null;
+  let rootObserver = null;
   let resizeObserver = null;
 
   function uncover() {
@@ -104,11 +105,16 @@ export function mountInsightsPage(doc, win, { findRegion = findContentRegion } =
         resizeObserver.observe(region);
       }
     }
+    // The text-size setting zooms <html> (text-scale.js). Under CSS zoom
+    // the region's rect comes back in on-screen pixels while the
+    // overlay's own px get zoomed again, so un-zoom them first (confirmed
+    // live: at 1.23x the overlay otherwise ran off the right edge).
+    const zoom = parseFloat(win.getComputedStyle(doc.documentElement).zoom) || 1;
     const rect = region.getBoundingClientRect();
-    style.top = `${rect.top}px`;
-    style.left = `${rect.left}px`;
-    style.width = `${rect.width}px`;
-    style.height = `${rect.height}px`;
+    style.top = `${rect.top / zoom}px`;
+    style.left = `${rect.left / zoom}px`;
+    style.width = `${rect.width / zoom}px`;
+    style.height = `${rect.height / zoom}px`;
     const regionStyle = win.getComputedStyle(region);
     style.backgroundColor = opaqueBackground(region) || 'Canvas';
     style.color = regionStyle.color;
@@ -129,20 +135,33 @@ export function mountInsightsPage(doc, win, { findRegion = findContentRegion } =
 
   // While the page is open, keep re-placing on DOM changes: on a direct
   // load the bundle runs before React has rendered anything, and Actual
-  // can swap its content region out from under us. childList only, so
-  // our own style writes never re-trigger it.
+  // can swap its content region out from under us. Watches the whole
+  // document, <head> included, so a theme change (the Fresh theme and the
+  // text size inject <style> tags there; ABT and Actual switch an
+  // attribute on <html>) recolors and re-sizes the overlay at once.
+  // childList, plus attributes on <html> alone, so our own style writes
+  // on the overlay and the region never re-trigger it.
   function startObserving() {
     if (observer) return;
-    observer = new win.MutationObserver(() => {
+    const replace = () => {
       if (open) place();
-    });
-    observer.observe(doc.body, { childList: true, subtree: true });
+    };
+    // Two observers: observe() on the same node twice would replace the
+    // first options rather than add to them.
+    observer = new win.MutationObserver(replace);
+    observer.observe(doc.documentElement, { childList: true, subtree: true });
+    rootObserver = new win.MutationObserver(replace);
+    rootObserver.observe(doc.documentElement, { attributes: true });
   }
 
   function stopObserving() {
     if (observer) {
       observer.disconnect();
       observer = null;
+    }
+    if (rootObserver) {
+      rootObserver.disconnect();
+      rootObserver = null;
     }
   }
 
