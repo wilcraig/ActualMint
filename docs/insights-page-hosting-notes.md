@@ -139,3 +139,23 @@ also "Insights"; they are different features.
   fails to load. Prefer in-app navigation when testing.
 - Turning ABT's live sidebar on/off and switching Standard/Split applies
   immediately, without a reload.
+
+## Learned while building (verified live)
+
+- **Settings scrolls the main column**, not the content region: the region's
+  rect can start thousands of px above the viewport. Cover only its visible
+  part, from the title bar's bottom to the viewport's.
+- **Text size zooms `<html>`**: `getBoundingClientRect()` returns on-screen
+  px while a fixed overlay's own px are zoomed again; divide by the zoom.
+- **Theme changes land in `<head>`** (Fresh theme, text size `<style>` tags),
+  so the overlay watches the whole document to re-read colors.
+- **Stacking**: Actual's sidebar is z 1001, title bar 1000, toasts 2999; ABT's
+  floating Budget-page "Insights" button is z 50. The overlay sits at 60.
+- **Same-route clicks drop the hash**: clicking the sidebar item for the
+  route already under the page (native, ABT Standard and Split) navigates to
+  the bare path, which closes the page. No click interception needed.
+- **Back button ordering**: `popstate` reaches the bundle before React/Svelte
+  re-render, so the sidebar highlight moves *after* the page has opened.
+  Svelte un-marks with `classList.toggle`, a silent no-op on an item we had
+  already un-marked, so un-highlighted items are forgotten (not restored)
+  as soon as another item turns active.

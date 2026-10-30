@@ -18,7 +18,9 @@ Actual Insights adds a layer of charts and budgeting insights on top of a self-h
   thermometers, goal-aware balance history, and a bill radar.
 - **Budget tools:** budget-pacing widgets, a projected month-end net,
   paycheck alerts, and a bills timeline.
-- **App-wide settings:** an optional "Fresh" color theme and a global text-size control.
+- **An Insights page** in Actual's sidebar: an optional "Fresh" color theme,
+  a global text-size control, and savings goals, with budget summaries and
+  notification channels on the way.
 
 All of it is injected into Actual's own Reports page and native UI, with zero
 changes to Actual itself.
@@ -149,7 +151,7 @@ spending.
 
 One bar per savings goal on a budget category (Christmas, vacation, next
 car, …). Each shows the category's current balance against its target, the
-target date, and the days left. Goals are set in the Actual Insights settings card
+target date, and the days left. Goals are set on the Insights page
 (see [Savings goals](#savings-goals)). Pass category ids to show only some of
 them.
 
@@ -203,11 +205,31 @@ treemap always agree with each other:
 - **Refunds:** a category whose refunds outweigh its spending for the period
   is left out rather than drawn as negative spending.
 
+## The Insights page
+
+An **Insights** entry in Actual's sidebar, just below Schedules, opens Actual
+Insights' own page. It works with Actual's own sidebar and with Actual Budget
+Tweaks' "Live sidebar", in both its Standard and Split layouts. The page has
+three tabs:
+
+- **General:** text size, the Fresh theme, and savings goals.
+- **Summaries** and **Channels:** placeholders for budget summaries and
+  notification channels, coming next.
+
+The page lives in the URL hash (`#actual-insights`, or
+`#actual-insights/summaries`) on whichever Actual page you were on, so a
+refresh or a bookmark brings you back to it. Actual keeps that page loaded
+underneath, and any sidebar item takes you back to it. Actual's Settings
+page keeps a small "Actual Insights" card with an **Open Insights** button,
+for anyone who remembers where these settings used to be.
+
+![The Insights page, General tab, opened from the sidebar](docs/screenshots/insights-page.jpg)
+
 ## Savings goals
 
 The two goal-based charts (the thermometers and the balance-history goal
-line) read from **savings goals** you set in a new **Actual Insights** card on
-Actual's Settings page:
+line) read from **savings goals** you set on the **Insights** page's General
+tab (see [The Insights page](#the-insights-page)):
 
 - **What a goal tracks:** either a budget category (a sinking fund) or an
   account (for example, a 529).
@@ -238,11 +260,11 @@ Actual's Settings page:
 - **Fresh theme:** a one-click re-skin of Actual's own color palette
   (Budget, Transactions, and Reports alike) into a light, airy teal-and-white
   look.
-  - **Where it's set:** from the "Actual Insights" card on Actual's Settings page,
-    saved per browser.
+  - **Where it's set:** from the Insights page's General tab, saved per
+    browser.
   - **Tip:** pick Actual's own **Light** theme first, since the recolor
     assumes a light background.
-- **Global text-size control:** set from the same settings card. It scales
+- **Global text-size control:** set from the same General tab. It scales
   the *entire* app (budget tables, transaction registers, reports,
   schedules), not just Actual Insights' widgets. It's saved per browser.
 
@@ -252,7 +274,7 @@ Actual's Settings page:
 
 | Widget builder | Settings |
 | --- | --- |
-| ![Widget builder button next to Actual's own "Add new widget" button, panel open with a generated placeholder](docs/screenshots/widget-builder.jpg) | ![The Actual Insights settings card below Actual's own Themes card: text size, Fresh theme, and savings goals](docs/screenshots/settings-card.jpg) |
+| ![Widget builder button next to Actual's own "Add new widget" button, panel open with a generated placeholder](docs/screenshots/widget-builder.jpg) | ![The Actual Insights card on Actual's Settings page, pointing to the Insights page](docs/screenshots/settings-card.jpg) |
 
 | Text size control |
 | --- |
@@ -280,8 +302,9 @@ browser --(HTTPS)--> insights-proxy --> abt/actual (Actual's own server)
   Actual's web client uses, so there's no separate login or credential to
   manage.
 - **`bundle/`**: the browser-side code. That's the Svelte 5 + D3 widgets, the
-  widget registry and builder panel, the settings card, and the mount logic
-  that scans the page for `{{INSIGHTS:...}}` placeholders.
+  widget registry and builder panel, the Insights page and its sidebar
+  entry, the Settings-page card, and the mount logic that scans the page for
+  `{{INSIGHTS:...}}` placeholders.
 
 ## Configuration
 
