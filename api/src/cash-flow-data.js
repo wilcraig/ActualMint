@@ -93,4 +93,4 @@ async function loadMonthCashFlow(client, month) {
   };
 }
 
-module.exports = { loadMonthCashFlow };
+module.exports = { loadMonthCashFlow, isIncomeGroup, isTransferGroup };
