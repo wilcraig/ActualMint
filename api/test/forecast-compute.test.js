@@ -5,8 +5,8 @@ const TODAY = '2026-10-30';
 
 const monthly = (day) => ({ start: `2026-01-${day}`, frequency: 'monthly', interval: 1, patterns: [], skipWeekend: false, weekendSolveMode: 'after', endMode: 'never' });
 
-// 8 weeks of history: one outflow of `cents` per week, plus an old anchor so
-// history is long enough.
+// 8 weekly outflows of `cents`, one per week (the oldest is 51 days back, so
+// 7 full weeks of history are counted).
 function history(cents, extra = {}) {
   const out = [];
   for (let w = 0; w < 8; w++) {
@@ -87,11 +87,40 @@ test('spending at a schedule payee is excluded from the allowance', async () => 
   expect(r.results[0].allowancePerDayCents).toBe(1000);
 });
 
-test('Starting Balance payee outflow is excluded from the allowance', async () => {
-  const txns = [...history(7000), { id: 'sb', date: '2026-08-01', amount: -900000, payee: 'p-sb' }];
-  const client = stubClient({ accounts: [acct('a1')], transactions: { a1: txns } });
+test('Starting Balance, Balance Adjustment and Reconciliation payees are excluded from the allowance', async () => {
+  const payees = [
+    { id: 'p-shop', name: 'Shop' },
+    { id: 'p-sb', name: 'starting balance' },
+    { id: 'p-adj', name: 'Balance Adjustment' },
+    { id: 'p-rec', name: 'RECONCILIATION TRANSACTION' },
+  ];
+  const txns = [
+    ...history(7000),
+    ...history(900000, { payee: 'p-sb' }).map((t) => ({ ...t, id: `sb${t.id}` })),
+    ...history(900000, { payee: 'p-adj' }).map((t) => ({ ...t, id: `adj${t.id}` })),
+    ...history(900000, { payee: 'p-rec' }).map((t) => ({ ...t, id: `rec${t.id}` })),
+  ];
+  const client = stubClient({ accounts: [acct('a1')], transactions: { a1: txns }, payees });
   const r = await computeForecast({ client, now: NOW, settings: settings({ a1: { enabled: true, warningLevelCents: 0 } }) });
   expect(r.results[0].allowancePerDayCents).toBe(1000);
+});
+
+test("another account's occurrences stay out of an account's events and days", async () => {
+  const schedules = [
+    { id: 's1', completed: false, amount: -1000, payee: 'p-rent', account: 'a1', date: '2026-11-02', next_date: '2026-11-02' },
+    { id: 's2', completed: false, amount: -50000, payee: 'p-rent', account: 'a2', date: '2026-11-03', next_date: '2026-11-03' },
+  ];
+  const client = stubClient({ accounts: [acct('a1'), acct('a2')], schedules, balances: { a1: 100000, a2: 100000 } });
+  const r = await computeForecast({
+    client,
+    now: NOW,
+    settings: settings({ a1: { enabled: true, warningLevelCents: 0 }, a2: { enabled: true, warningLevelCents: 0 } }),
+  });
+  const [one, two] = r.results;
+  expect(one.events).toEqual([{ date: '2026-11-02', name: 'Landlord', amountCents: -1000 }]);
+  expect(one.days[10].balanceCents).toBe(99000);
+  expect(two.events).toEqual([{ date: '2026-11-03', name: 'Landlord', amountCents: -50000 }]);
+  expect(two.days[10].balanceCents).toBe(50000);
 });
 
 test('uses settings.windowDays, warning level, and schedules for the projection', async () => {
