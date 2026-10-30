@@ -213,8 +213,9 @@ Tweaks' "Live sidebar", in both its Standard and Split layouts. The page has
 three tabs:
 
 - **General:** text size, the Fresh theme, and savings goals.
-- **Summaries** and **Channels:** placeholders for budget summaries and
-  notification channels, coming next.
+- **Summaries:** a placeholder for budget summaries, coming next.
+- **Channels:** the places notifications can go (see
+  [Notification channels](#notification-channels)).
 
 The page lives in the URL hash (`#actual-insights`, or
 `#actual-insights/summaries`) on whichever Actual page you were on, so a
@@ -224,6 +225,48 @@ page keeps a small "Actual Insights" card with an **Open Insights** button,
 for anyone who remembers where these settings used to be.
 
 ![The Insights page, General tab, opened from the sidebar](docs/screenshots/insights-page.jpg)
+
+## Notification channels
+
+The **Channels** tab holds an app-wide list of places Actual Insights can
+send things. Features that send messages pick a channel from this one list
+rather than each asking for their own settings. Every channel has a
+**Send test** button that sends a short test message and shows the result
+(or the error) right there.
+
+| Type | What you enter |
+| --- | --- |
+| ntfy | Server URL, topic, optional access token, priority |
+| Email (SMTP) | Host, port, security (STARTTLS / TLS / none), username, password, from, to |
+| Webhook | URL, method (POST or PUT), custom headers; sends the full JSON message |
+| Discord | Webhook URL |
+| Slack | Incoming webhook URL |
+| Telegram | Bot token, chat ID |
+| Pushover | App token, user key |
+| Gotify | Server URL, app token |
+| Home Assistant | Base URL, webhook ID (fires an HA webhook trigger) |
+| Apprise | Apprise API URL, plus a config key or target URLs |
+
+- **Secrets are write-only.** Passwords, tokens, keys, custom header values,
+  and any URL or ID that grants access on its own (Discord/Slack/Home
+  Assistant webhooks, Apprise targets, the ntfy topic) can be set or
+  replaced in the browser but are never sent back to it. When you edit a
+  channel, a stored secret shows as "set": leave it blank to keep it. Error
+  text is scrubbed of every stored secret before it is shown or logged.
+- **Gmail:** the Email form has a **Gmail** preset that fills in the host,
+  port, and security. Gmail needs an app password (Google Account →
+  Security → 2-Step Verification → App passwords); your normal password
+  won't work.
+- **Where they're stored:** channels live in `channels.json` under
+  `INSIGHTS_DATA_DIR`, next to `goals.json`. It holds secrets in plain text
+  (mode `0600`), so keep that volume private and back it up the same way
+  you back up `goals.json`.
+
+Code elsewhere in the API sends through one shared function,
+`notify(channelId, message)` in `api/src/notify.js`, with a message of
+`{ title, text, markdown?, html?, data? }`; each channel type uses what
+fits. A new channel type is one file in `api/src/channels/types/` plus one
+line in `api/src/channels/registry.js`.
 
 ## Savings goals
 
@@ -326,7 +369,7 @@ browser --(HTTPS)--> insights-proxy --> abt/actual (Actual's own server)
 | `ACTUAL_SERVER_PASSWORD` | Actual's server password |
 | `ACTUAL_SYNC_ID` | The budget's sync *group* id (Settings → Advanced Settings → Sync ID in Actual) |
 | `ACTUAL_E2E_PASSWORD` | Only needed if the budget has end-to-end encryption enabled |
-| `INSIGHTS_DATA_DIR` | Where `goals.json` is stored (default `/data`). Mount a volume here so goals survive container rebuilds |
+| `INSIGHTS_DATA_DIR` | Where `goals.json` and `channels.json` are stored (default `/data`). Mount a volume here so goals and channels survive container rebuilds; `channels.json` holds secrets, so keep the volume private |
 | `PORT` | `3011` by default |
 | `TZ` | Set this to your own timezone, since several widgets do day-of-month math |
 
