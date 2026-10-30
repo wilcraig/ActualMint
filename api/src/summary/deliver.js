@@ -123,4 +123,4 @@ async function deliver({
   return result.ok ? { ok: true, summary } : { ok: false, error: result.error, summary };
 }
 
-module.exports = { deliver, RETRY_DELAYS_MS };
+module.exports = { deliver, sendWithRetries, RETRY_DELAYS_MS, CHANNEL_NOT_FOUND };
