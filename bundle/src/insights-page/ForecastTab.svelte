@@ -21,6 +21,9 @@
   let saving = $state(false);
   let saveError = $state(null); // { message, field }
   let levelErrors = $state({}); // account id -> message, for unparsable dollar fields
+  // What the user typed in each warning-level field. The only thing bound to
+  // the input, so typing is never rewritten; cents in settings derive from it.
+  let levelText = $state({});
 
   let checking = $state(false);
   let checkError = $state(null);
@@ -39,6 +42,7 @@
     settings = next;
     savedJson = JSON.stringify(next);
     levelErrors = {};
+    levelText = Object.fromEntries(Object.entries(next.accounts || {}).map(([id, a]) => [id, centsToDollars(a.warningLevelCents)]));
   }
 
   async function refreshHistory() {
@@ -98,10 +102,12 @@
     const existing = settings.accounts[id];
     if (existing) existing.enabled = on;
     else settings.accounts[id] = { enabled: on, warningLevelCents: 0 };
+    if (levelText[id] === undefined) levelText[id] = '0';
     if (!on) delete levelErrors[id];
   }
 
   function setLevel(id, text) {
+    levelText[id] = text;
     const n = Number(text);
     if (text.trim() === '' || !Number.isFinite(n) || n < 0) {
       levelErrors[id] = 'Warning level must be zero or more';
@@ -210,7 +216,7 @@
             <label class="form-row" for="forecast-level-{account.id}">
               <span class="setting-desc">Warn me when the balance would drop below ($)</span>
               <input id="forecast-level-{account.id}" class="abt-input narrow warning-level" type="number" min="0" step="0.01"
-                value={centsToDollars(cfg.warningLevelCents)} oninput={(e) => setLevel(account.id, e.target.value)} />
+                value={levelText[account.id] ?? centsToDollars(cfg.warningLevelCents)} oninput={(e) => setLevel(account.id, e.target.value)} />
               {#if levelErrors[account.id]}<span class="field-error" role="alert">{levelErrors[account.id]}</span>{/if}
               {#if errorFor(`accounts.${account.id}.warningLevelCents`)}<span class="field-error" role="alert">{errorFor(`accounts.${account.id}.warningLevelCents`)}</span>{/if}
             </label>

@@ -228,3 +228,60 @@ test('lists send history', async () => {
   const host = await mountTab();
   expect(host.querySelectorAll('.history-row')).toHaveLength(1);
 });
+
+async function turnOn(host, id) {
+  toggle(host, id).checked = true;
+  change(toggle(host, id));
+  await flush();
+  return row(host, id).querySelector('.warning-level');
+}
+
+test('typing decimals into the warning level is never rewritten, and saves exact cents', async () => {
+  const host = await mountTab();
+  const field = await turnOn(host, 'a1');
+  for (const text of ['19.9', '19.99']) {
+    type(field, text);
+    await flush();
+    expect(row(host, 'a1').querySelector('.warning-level').value).toBe(text);
+  }
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings.mock.calls[0][0].accounts.a1.warningLevelCents).toBe(1999);
+});
+
+test('0.5 then 0.55 stays as typed and saves 55', async () => {
+  const host = await mountTab();
+  const field = await turnOn(host, 'a1');
+  for (const text of ['0.5', '0.55']) {
+    type(field, text);
+    await flush();
+    expect(field.value).toBe(text);
+  }
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings.mock.calls[0][0].accounts.a1.warningLevelCents).toBe(55);
+});
+
+test('1e2 is accepted as 100 dollars; an empty field is rejected', async () => {
+  const host = await mountTab();
+  const field = await turnOn(host, 'a1');
+  type(field, '1e2');
+  await flush();
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings.mock.calls[0][0].accounts.a1.warningLevelCents).toBe(10000);
+  saveSettings.mockClear();
+  type(field, '');
+  await flush();
+  await click(host.querySelector('.save-settings'));
+  expect(saveSettings).not.toHaveBeenCalled();
+  expect(host.querySelector('.save-error').textContent).toContain('Warning level');
+});
+
+test('a loaded 2500 shows 25 and 1999 shows 19.99', async () => {
+  getSettings.mockImplementation(async () => ({
+    settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 2500 }, a2: { enabled: true, warningLevelCents: 1999 } } }),
+    accounts: ACCOUNTS,
+    timezone: null,
+  }));
+  const host = await mountTab();
+  expect(row(host, 'a1').querySelector('.warning-level').value).toBe('25');
+  expect(row(host, 'a2').querySelector('.warning-level').value).toBe('19.99');
+});
