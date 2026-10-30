@@ -24,6 +24,7 @@ function listChannelTypes() {
 
 [
   require('./types/ntfy'),
+  require('./types/email'),
   require('./types/webhook'),
   require('./types/discord'),
   require('./types/slack'),
