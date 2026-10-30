@@ -163,8 +163,51 @@ test('Check now shows a warning line for a breach and No shortfall otherwise, wi
   expect(r1.textContent).toContain('Lowest');
   expect(r2.textContent).toContain('No shortfall in the next 15 days');
   expect(r2.textContent).toContain('needs 4 weeks');
-  expect(host.querySelector('.actualmint-forecast-chart-slot[data-account-id="a1"]')).not.toBeNull();
   expect(host.querySelector('.forecast-errors').textContent).toContain('Broken');
+});
+
+function chartResult(id, name, over = {}) {
+  return {
+    accountId: id, accountName: name, warningLevelCents: 0, balanceCents: 100000, allowancePerDayCents: 0, allowanceNote: null,
+    days: [{ date: '2026-11-01', balanceCents: 100000 }, { date: '2026-11-02', balanceCents: 90000 }],
+    events: [{ date: '2026-11-02', name: `${name} bill`, amountCents: -10000 }],
+    lowest: { date: '2026-11-02', balanceCents: 90000 }, breach: null, ...over,
+  };
+}
+
+test('Check now draws one chart; with several accounts a picker switches it, defaulting to the first', async () => {
+  getSettings.mockImplementation(async () => ({
+    settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 0 }, a2: { enabled: true, warningLevelCents: 0 } } }),
+    accounts: ACCOUNTS,
+    timezone: null,
+  }));
+  checkNow.mockResolvedValue({ forecast: { results: [chartResult('a1', 'Checking'), chartResult('a2', 'Savings')], errors: [] } });
+  const host = await mountTab();
+  await click(host.querySelector('.check-now'));
+  expect(host.querySelectorAll('.actualmint-forecast-chart svg')).toHaveLength(1);
+  expect(host.querySelector('.actualmint-forecast-chart').textContent).toContain('Checking bill');
+  // The per-account results lines stay.
+  expect(host.querySelectorAll('.forecast-result')).toHaveLength(2);
+  const picker = host.querySelector('.forecast-account-picker');
+  expect(picker).not.toBeNull();
+  expect(picker.value).toBe('a1');
+  change(picker, 'a2');
+  await flush();
+  expect(host.querySelectorAll('.actualmint-forecast-chart svg')).toHaveLength(1);
+  expect(host.querySelector('.actualmint-forecast-chart').textContent).toContain('Savings bill');
+});
+
+test('Check now with one account draws its chart without a picker', async () => {
+  getSettings.mockImplementation(async () => ({
+    settings: settings({ accounts: { a1: { enabled: true, warningLevelCents: 0 } } }),
+    accounts: ACCOUNTS,
+    timezone: null,
+  }));
+  checkNow.mockResolvedValue({ forecast: { results: [chartResult('a1', 'Checking')], errors: [] } });
+  const host = await mountTab();
+  await click(host.querySelector('.check-now'));
+  expect(host.querySelectorAll('.actualmint-forecast-chart svg')).toHaveLength(1);
+  expect(host.querySelector('.forecast-account-picker')).toBeNull();
 });
 
 test('Check now shows forecast.error when the preview failed', async () => {

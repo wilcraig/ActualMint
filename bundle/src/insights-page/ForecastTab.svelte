@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getSettings, saveSettings, checkNow, sendTestMessage, getHistory } from './forecast-api';
   import { getChannels } from './summaries-api';
+  import ForecastChart from './ForecastChart.svelte';
 
   // The Insights page's Forecast tab: which accounts to watch (and each
   // one's warning level), the daily check (channel, time, look-ahead window),
@@ -29,6 +30,12 @@
   let checkError = $state(null);
   let forecast = $state(null);
   let checkedDays = $state(15);
+  // Which account's chart is shown when Check now covered more than one.
+  let chartAccountId = $state(null);
+  let chartResult = $derived.by(() => {
+    const results = (forecast && forecast.results) || [];
+    return results.find((r) => r.accountId === chartAccountId) ?? results[0] ?? null;
+  });
 
   let testing = $state(false);
   let testResult = $state(null); // { ok, error }
@@ -146,6 +153,7 @@
       if (f.error) checkError = f.error;
       else {
         forecast = f;
+        chartAccountId = f.results && f.results.length > 0 ? f.results[0].accountId : null;
         checkedDays = savedJson ? JSON.parse(savedJson).windowDays : settings.windowDays;
       }
     } catch (err) {
@@ -320,9 +328,22 @@
             {#if result.allowanceNote}
               <p class="result-allowance forecast-note">{result.allowanceNote}</p>
             {/if}
-            <div class="actualmint-forecast-chart-slot" data-account-id={result.accountId}></div>
           </div>
         {/each}
+        {#if (forecast.results || []).length > 1}
+          <label class="form-row chart-picker-row">
+            <span class="setting-desc">Chart</span>
+            <select class="abt-input forecast-account-picker" value={chartResult?.accountId ?? ''}
+              onchange={(e) => { chartAccountId = e.target.value; }}>
+              {#each forecast.results as result (result.accountId)}
+                <option value={result.accountId}>{result.accountName}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+        {#if chartResult}
+          <ForecastChart result={chartResult} />
+        {/if}
         {#if (forecast.errors || []).length > 0}
           <div class="forecast-errors">
             {#each forecast.errors as e (e.accountId)}
