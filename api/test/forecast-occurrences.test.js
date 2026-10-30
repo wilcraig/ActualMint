@@ -25,10 +25,16 @@ test('recurring schedule with next_date in the window appears on its day', async
   ]);
 });
 
-test('an occurrence earlier than next_date is dropped (already posted)', async () => {
-  const client = stubClient([sched('s1', { date: monthly('13'), next_date: '2026-11-13' })]);
-  const items = await forecastOccurrences(client, { today: '2026-10-14', windowDays: 10 });
+test('an in-window occurrence earlier than next_date is dropped (already posted)', async () => {
+  const client = stubClient([sched('s1', { date: monthly('20'), next_date: '2026-11-20' })]);
+  const items = await forecastOccurrences(client, { today: TODAY, windowDays: 10 });
   expect(items).toEqual([]);
+});
+
+test('an in-window occurrence equal to next_date is kept', async () => {
+  const client = stubClient([sched('s1', { date: monthly('20'), next_date: '2026-10-20' })]);
+  const items = await forecastOccurrences(client, { today: TODAY, windowDays: 10 });
+  expect(items.map((i) => i.date)).toEqual(['2026-10-20']);
 });
 
 test('a schedule whose next_date is before today adds one overdue item on today', async () => {
