@@ -213,7 +213,8 @@ Tweaks' "Live sidebar", in both its Standard and Split layouts. The page has
 three tabs:
 
 - **General:** text size, the Fresh theme, and savings goals.
-- **Summaries:** a placeholder for budget summaries, coming next.
+- **Summaries:** scheduled and on-demand budget summaries (see
+  [Budget summaries](#budget-summaries)).
 - **Channels:** the places notifications can go (see
   [Notification channels](#notification-channels)).
 
@@ -267,6 +268,128 @@ Code elsewhere in the API sends through one shared function,
 `{ title, text, markdown?, html?, data? }`; each channel type uses what
 fits. A new channel type is one file in `api/src/channels/types/` plus one
 line in `api/src/channels/registry.js`.
+
+## Budget summaries
+
+The **Summaries** tab sets up a short report on how the budget is doing,
+sent to any channel on a schedule or when you press **Send now**. It opens
+with whether spending is on track for this point in the month, then points
+at the few things worth a look.
+
+### Sections
+
+One shared set of sections serves every delivery. Each can be turned off,
+and a section with nothing to report is left out of that summary.
+
+| Section | What it shows | Settings |
+| --- | --- | --- |
+| Pacing | Spending against the budget for how far through the month we are, overall and for each budget line that's off track. Same numbers as the Pacing Bars widget: available is `balance + spent`, so carryover counts. A line is off track when spent passes available × the share of the month gone, plus a tolerance. | Tolerance in percent (default 10); optionally only some categories |
+| Largest transactions | The biggest spending transactions in the delivery's period | How many (default 5); minimum amount; exclude scheduled payments (default on) |
+| Coming up | Bills and credit card payments due soon, from Actual's schedules | Look-ahead in days (default 7); minimum amount |
+| Watched categories | Chosen categories, always shown, good or bad | Category list |
+| Over budget | Chosen categories, shown only when spending has passed everything available | Category list |
+
+Pacing, watched, and over-budget categories always measure the current
+month to date (Actual budgets by calendar month), even on the 1st. The
+delivery's period applies to Largest transactions, which can span two
+months.
+
+### Exclusions
+
+Summaries count spending the way the charts do: transfers, starting
+balances, and income groups are never spending. On top of that, **Exclude
+from updates** removes chosen categories, payees, and schedules from every
+section, for things you expect and don't need to hear about (the mortgage,
+say). A watched or over-budget category still shows even if it's also
+excluded; the tab notes when that's the case.
+
+### Deliveries
+
+A delivery is a name, a channel, a period, and a schedule. Each one has
+**Preview** (shows the text, markdown, HTML, and JSON exactly as they'd go
+out, without sending) and **Send now**.
+
+| Period | Covers |
+| --- | --- |
+| Yesterday | The previous calendar day |
+| Week in Review | The 7 days ending yesterday |
+| New Since Last Summary | Transactions this delivery hasn't reported before, by transaction id rather than date, so a bank import that lands days late is still reported, once. The first send covers the last 7 days. |
+| Month-to-date, highlighting This Week | The month so far, with items from the last 7 days flagged |
+
+- **Schedules** are days of the week plus one or more times. Daily means
+  all seven days; no days or times means send on demand only.
+- **Time zone:** schedules fire in the API's `TZ`. The tab shows that zone
+  and warns when your browser's is different.
+- **Missed sends:** if the API was down at send time, it sends once on
+  startup when the miss is under 12 hours old, and skips it otherwise.
+  Never more than one catch-up per delivery.
+- **Failures:** a failed send is retried twice (after 2 and then 6
+  minutes). If it still fails, one alert goes to the channel chosen under
+  **Alert me about failures on**, naming the delivery and the error.
+  Every outcome lands in **Send history** (the last 100), even when the
+  alert channel is the broken one. History keeps the outcome and the
+  scrubbed error only, never message bodies or secrets.
+
+### Webhook payload
+
+Webhook and Home Assistant channels receive the message's `data`: a
+versioned, stable JSON summary for agents and automations. Amounts are
+integer cents; spending is positive. Keys may be added in later versions,
+never renamed or removed without bumping `schemaVersion`.
+
+```json
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-29T13:00:00.000Z",
+  "delivery": { "id": "9b0c…", "name": "Week in Review", "period": "week" },
+  "period": { "start": "2026-10-22", "end": "2026-10-28" },
+  "month": "2026-10",
+  "text": "Week in Review: 2026-10-22 to 2026-10-28\n\nPacing\n- On track: $812.00 spent, $890.00 expected by today\n…",
+  "sections": {
+    "pacing": {
+      "title": "Pacing",
+      "data": {
+        "overall": { "spentCents": 81200, "availableCents": 98500, "expectedCents": 89000, "status": "on-pace", "fractionElapsed": 0.935 },
+        "offTrack": [
+          { "categoryId": "…", "name": "Dining", "groupName": "Food", "spentCents": 21000, "availableCents": 20000, "expectedCents": 18700, "status": "over" }
+        ],
+        "groups": [{ "groupName": "Food", "spentCents": 61000, "availableCents": 80000 }]
+      }
+    },
+    "largest": {
+      "title": "Largest transactions",
+      "data": { "items": [{ "id": "…", "date": "2026-10-27", "payee": "Grocer", "categoryName": "Groceries", "accountName": "Visa", "amountCents": 14520, "inHighlight": false }] }
+    },
+    "upcoming": {
+      "title": "Coming up",
+      "data": { "items": [{ "scheduleId": "…", "name": "Visa payment", "date": "2026-11-02", "amountCents": 123456, "accountName": "Checking" }], "totalCents": 123456 }
+    },
+    "watched": {
+      "title": "Watched categories",
+      "data": { "categories": [{ "categoryId": "…", "name": "Groceries", "spentCents": 40000, "availableCents": 60000, "remainingCents": 20000, "status": "on-pace" }] }
+    },
+    "alerts": {
+      "title": "Over budget",
+      "data": { "categories": [{ "categoryId": "…", "name": "Dining", "spentCents": 21000, "availableCents": 20000, "remainingCents": -1000, "status": "over" }] }
+    }
+  }
+}
+```
+
+Statuses are `under`, `on-pace`, `off-track`, and `over`. A section that
+fails to build appears as `{ "title", "data": null, "error": "could not be
+built" }` while the rest of the summary still goes out.
+
+### Where it's stored
+
+`summary-settings.json` (sections, exclusions, deliveries, failure channel)
+and `summary-history.json` (send history and the transaction ids each New
+Since Last Summary delivery has reported, kept 90 days) live in the data
+volume under `INSIGHTS_DATA_DIR`, next to `goals.json` and `channels.json`.
+Neither holds secrets.
+
+A new section is one file in `api/src/summary/sections/`, one line in its
+`index.js`, and its defaults in `api/src/summary/settings-store.js`.
 
 ## Savings goals
 
@@ -369,9 +492,9 @@ browser --(HTTPS)--> insights-proxy --> abt/actual (Actual's own server)
 | `ACTUAL_SERVER_PASSWORD` | Actual's server password |
 | `ACTUAL_SYNC_ID` | The budget's sync *group* id (Settings → Advanced Settings → Sync ID in Actual) |
 | `ACTUAL_E2E_PASSWORD` | Only needed if the budget has end-to-end encryption enabled |
-| `INSIGHTS_DATA_DIR` | Where `goals.json` and `channels.json` are stored (default `/data`). Mount a volume here so goals and channels survive container rebuilds; `channels.json` holds secrets, so keep the volume private |
+| `INSIGHTS_DATA_DIR` | Where `goals.json`, `channels.json`, `summary-settings.json` and `summary-history.json` are stored (default `/data`). Mount a writable volume here so they survive container rebuilds; `channels.json` holds secrets, so keep the volume private |
 | `PORT` | `3011` by default |
-| `TZ` | Set this to your own timezone, since several widgets do day-of-month math |
+| `TZ` | Set this to your own timezone (required): several widgets do day-of-month math, and budget summary schedules fire in this zone |
 
 ## Development
 
