@@ -26,7 +26,7 @@ const TITLEBAR_MAX_HEIGHT = 100;
 // sibling (the others are a notifications layer and an empty strip, both
 // 0px tall). Emotion's hashed class names change between Actual releases,
 // so none are used.
-export function findContentRegion(doc) {
+function locate(doc) {
   const help = doc.querySelector('[data-testid="help-menu-button"]');
   if (!help) return null;
 
@@ -48,10 +48,14 @@ export function findContentRegion(doc) {
       regionHeight = height;
     }
   }
-  return region;
+  return region ? { bar, region } : null;
 }
 
-export function mountInsightsPage(doc, win, { findRegion = findContentRegion } = {}) {
+export function findContentRegion(doc) {
+  return locate(doc)?.region ?? null;
+}
+
+export function mountInsightsPage(doc, win) {
   const container = doc.createElement('div');
   container.setAttribute('data-insights-page', '1');
   container.className = 'actualmint-insights-page-host';
@@ -91,11 +95,12 @@ export function mountInsightsPage(doc, win, { findRegion = findContentRegion } =
   // the theme (Light, Dark, Midnight, Fresh, an ABT theme) and the
   // sidebar's width (ABT's accounts panel can be collapsed).
   function place() {
-    const region = findRegion(doc);
-    if (!region) {
+    const found = locate(doc);
+    if (!found) {
       style.display = 'none';
       return;
     }
+    const { bar, region } = found;
     if (region !== covered) {
       uncover();
       covered = region;
@@ -109,12 +114,23 @@ export function mountInsightsPage(doc, win, { findRegion = findContentRegion } =
     // the region's rect comes back in on-screen pixels while the
     // overlay's own px get zoomed again, so un-zoom them first (confirmed
     // live: at 1.23x the overlay otherwise ran off the right edge).
+    //
+    // Only the region's visible part, below the title bar: on long pages
+    // (Settings) Actual scrolls the whole main column, so the region's
+    // own box can start thousands of px above the viewport (confirmed
+    // live: covering that box left the page's content off-screen).
     const zoom = parseFloat(win.getComputedStyle(doc.documentElement).zoom) || 1;
     const rect = region.getBoundingClientRect();
-    style.top = `${rect.top / zoom}px`;
+    const top = Math.max(rect.top, bar.getBoundingClientRect().bottom);
+    const bottom = Math.min(
+      rect.bottom,
+      bar.parentElement.getBoundingClientRect().bottom,
+      win.innerHeight,
+    );
+    style.top = `${top / zoom}px`;
     style.left = `${rect.left / zoom}px`;
     style.width = `${rect.width / zoom}px`;
-    style.height = `${rect.height / zoom}px`;
+    style.height = `${Math.max(0, bottom - top) / zoom}px`;
     const regionStyle = win.getComputedStyle(region);
     style.backgroundColor = opaqueBackground(region) || 'Canvas';
     style.color = regionStyle.color;

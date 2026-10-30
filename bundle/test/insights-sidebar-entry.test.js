@@ -251,3 +251,33 @@ test('a highlight the framework moves while the page is open is followed, never 
   expect(item('Reports').classList.contains('active')).toBe(true);
   expect(item('Insights').classList.contains('active')).toBe(false);
 });
+
+// Seen live: after a reload straight onto a "More" page (Payees, Settings)
+// no top-level item has been active yet, so there's no top-level selected
+// class to borrow. The entry then copies the selected item's accent
+// (color and left border) inline instead of showing nothing.
+test('the native entry borrows the accent inline when only a "More" item has been selected', async () => {
+  document.body.innerHTML = NATIVE_SIDEBAR.replace(
+    '<a aria-current="page" class="css-7iovzr active" href="/budget">',
+    '<a class="css-1trtw0g" href="/budget">',
+  ).replace(
+    '<a class="css-e5dykp" href="/settings">',
+    '<a aria-current="page" class="css-13d5vlg active" href="/settings" style="color: rgb(1, 2, 3); border-left: 4px solid rgb(1, 2, 3);">',
+  );
+  window.history.replaceState(null, '', '/settings');
+  unmount = mountSidebarEntry(document, window);
+  await flush();
+
+  window.history.pushState(null, '', '/settings#actual-insights');
+  await flush();
+  const link = clickable(entries()[0]);
+  expect(link.getAttribute('aria-current')).toBe('page');
+  expect(link.style.color).toBe('rgb(1, 2, 3)');
+  expect(link.style.borderLeftWidth).toBe('4px');
+  expect(link.style.borderLeftStyle).toBe('solid');
+
+  window.history.pushState(null, '', '/settings');
+  await flush();
+  expect(link.style.color).toBe('');
+  expect(link.style.borderLeftWidth).toBe('');
+});

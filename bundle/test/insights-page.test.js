@@ -231,11 +231,34 @@ test('covers the content region exactly, un-zooming its rect under the text-size
     const computed = realGetComputedStyle(el);
     return el === document.documentElement ? { ...computed, zoom: '2' } : computed;
   });
-  window.dispatchEvent(new Event('resize'));
+  try {
+    window.dispatchEvent(new Event('resize'));
+    await flush();
+    expect(pageContainer().style.top).toBe('30px');
+    expect(pageContainer().style.left).toBe('200px');
+    expect(pageContainer().style.width).toBe('500px');
+    // Down to the bottom of the viewport (jsdom's is 768px tall).
+    expect(pageContainer().style.height).toBe(`${(Math.min(900, window.innerHeight) - 60) / 2}px`);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+// Seen live on Actual's long Settings page: the main column scrolls, so
+// the content region's rect starts far above the viewport. The overlay
+// must cover what's visible below the title bar, not the region's full
+// scrolled-away box (which left the page's content off-screen).
+test('covers only the visible part of a scrolled content region, below the title bar', async () => {
+  const region = document.getElementById('content');
+  region.getBoundingClientRect = () => ({ top: -4000, left: 300, width: 1000, height: 9000, right: 1300, bottom: 5000 });
+  document.getElementById('titlebar').getBoundingClientRect = () => ({ top: 0, left: 300, width: 1000, height: 48, right: 1300, bottom: 48 });
+  unwatch = mountInsightsPage(document, window);
+  window.history.pushState(null, '', '/settings#actual-insights');
   await flush();
-  expect(pageContainer().style.top).toBe('30px');
-  expect(pageContainer().style.left).toBe('200px');
-  expect(pageContainer().style.width).toBe('500px');
-  expect(pageContainer().style.height).toBe('420px');
-  spy.mockRestore();
+
+  const visibleBottom = Math.min(900, window.innerHeight);
+  expect(pageContainer().style.top).toBe('48px');
+  expect(pageContainer().style.height).toBe(`${visibleBottom - 48}px`);
+  expect(pageContainer().style.left).toBe('300px');
+  expect(pageContainer().style.width).toBe('1000px');
 });

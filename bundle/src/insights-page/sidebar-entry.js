@@ -210,6 +210,7 @@ export function mountSidebarEntry(doc, win) {
     if (active) {
       const original = active.getAttribute('class');
       if (levelOf(active) === levelOf(link)) nativeActiveClass = original;
+      else if (!nativeActiveClass) borrowAccent(link, active);
       const inactive = inactiveClassFor(sidebar.container, active);
       suppress(active, (el) => {
         if (inactive) el.setAttribute('class', inactive);
@@ -217,8 +218,38 @@ export function mountSidebarEntry(doc, win) {
         el.removeAttribute('aria-current');
       });
     }
-    link.setAttribute('class', nativeActiveClass ?? `${link.dataset.insightsInactiveClass} active`);
+    if (nativeActiveClass) {
+      clearAccent(link);
+      link.setAttribute('class', nativeActiveClass);
+    } else {
+      link.setAttribute('class', `${link.dataset.insightsInactiveClass} active`);
+    }
     link.setAttribute('aria-current', 'page');
+  }
+
+  // Fallback when no top-level item has been selected since the page
+  // loaded (a reload straight onto Payees or Settings, seen live), so
+  // there's no top-level selected class to borrow: copy the selected
+  // "More" item's accent -- text color and left border -- inline, giving
+  // back the border's width from the left padding so the label doesn't
+  // shift. Inline styles on our own element only.
+  function borrowAccent(link, active) {
+    const from = win.getComputedStyle(active);
+    const borderWidth = parseFloat(from.borderLeftWidth) || 0;
+    const ownPadding = parseFloat(win.getComputedStyle(link).paddingLeft);
+    link.style.color = from.color;
+    link.style.borderLeftWidth = from.borderLeftWidth;
+    link.style.borderLeftStyle = from.borderLeftStyle;
+    link.style.borderLeftColor = from.borderLeftColor;
+    if (!Number.isNaN(ownPadding) && borderWidth > 0) {
+      link.style.paddingLeft = `${Math.max(0, ownPadding - borderWidth)}px`;
+    }
+  }
+
+  function clearAccent(link) {
+    for (const prop of ['color', 'border-left-width', 'border-left-style', 'border-left-color', 'padding-left']) {
+      link.style.removeProperty(prop);
+    }
   }
 
   function selectAbt(sidebar, link) {
@@ -230,6 +261,7 @@ export function mountSidebarEntry(doc, win) {
 
   function deselect(sidebar, link) {
     if (sidebar.kind === 'native') {
+      clearAccent(link);
       link.setAttribute('class', link.dataset.insightsInactiveClass);
       link.removeAttribute('aria-current');
     } else {
