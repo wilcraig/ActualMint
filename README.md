@@ -409,6 +409,7 @@ through the look-ahead window (default 15 days, 1 to 30):
 | Counted | How |
 | --- | --- |
 | Scheduled bills and income | Every occurrence of Actual's schedules on that account in the window, at the schedule's amount. An occurrence that already posted is skipped; an overdue one that hasn't posted is counted today. |
+| Transactions already posted for a later date | A transaction dated after today but already in the account (a bill you posted early) is counted on its own date, because today's balance doesn't include it yet. When Actual linked it to its schedule, the schedule's occurrence is skipped, so it counts once. |
 | Credit-card payments | Whatever amount the payment schedule holds (in our setup, what cc-helper wrote there). The forecast never estimates a card payment itself, so past the window cc-helper has filled in (15 days) later card payments may be missing; the tab says so when the window is longer than 15 days. |
 | Everyday spending | A daily allowance: the **median** weekly spending over the last 8 complete weeks, divided by 7. The median keeps one big purchase from inflating it. It leaves out income, transfers, starting balances and adjustments, and payees that already have a schedule on the account (so a bill isn't counted twice). With under 4 weeks of history the allowance is zero, and the forecast says so. |
 
@@ -424,15 +425,18 @@ without sending anything or touching the check history. For each account it
 shows the first shortfall (or "No shortfall in the next N days") and the
 lowest balance, plus a chart: the projected balance, a dashed line at the
 warning level, the part below it shaded red, and the scheduled items
-labelled on their dates. With more than one account switched on, a picker
-chooses which account the chart shows.
+labelled on their dates. Each account's line also says how much a day the
+everyday-spending allowance assumes. With more than one account switched on,
+a picker chooses which account the chart shows; it starts on the first
+account that has a shortfall.
 
 ![Forecast tab: Check now results and the chart for an account that dips below its warning level](docs/screenshots/forecast-tab.jpg)
 
 ### The daily check
 
 Turn on **Check every day**, pick a channel and a time, and the API runs the
-check once a day in its `TZ`.
+check once a day in its `TZ`. A channel is required to turn it on; saving
+without one shows an error beside the channel field.
 
 - **Only new or changed shortfalls are sent.** A shortfall that persists
   doesn't re-send every day. It sends again only when its first date moves,
@@ -445,15 +449,31 @@ check once a day in its `TZ`.
 - **Missed checks:** like summaries, a check missed while the API was down
   runs once on startup when the miss is under 12 hours old.
 - **Failures:** a failed send is retried twice (after 2 and then 6 minutes).
-  If it still fails, or an account can't be computed, one alert goes to the
-  failure channel chosen on the **Summaries** tab (**Alert me about failures
-  on**). The warning state only advances for a warning that was actually
+  If it still fails, an account can't be computed, or the saved warning
+  state can't be read, one alert goes to the failure channel chosen on the
+  **Summaries** tab (**Alert me about failures on**). The warning state only advances for a warning that was actually
   sent, so a failed one is tried again the next day.
 - **Send test message** sends one short test message to the saved channel
   (no retries) and shows the result.
 - **Check history** lists the last 50 checks: when, the outcome (who was
   warned, "Nothing to send", or the error), and whether it was the schedule
   or a catch-up.
+
+### Limits
+
+- **It can overstate, not understate.** A transaction dated in the future
+  that Actual did not link to its schedule counts alongside that schedule's
+  occurrence, so a bill entered by hand can be counted twice. A warning that
+  is a little too cautious is the safer mistake.
+- **Card payments are as good as the schedule.** The forecast uses the
+  amount in each card-payment schedule as written. A payment scheduled at $0,
+  or that falls past the window, adds nothing.
+- **Early-posted card payments may be unnamed.** A card payment posted ahead
+  of its date is a transfer, and the warning can name it "(No payee)" rather
+  than the schedule.
+- **Split transactions** are counted by their total.
+- **Chart labels** can crowd when several scheduled items fall on nearby
+  days.
 
 ### Warning payload
 
